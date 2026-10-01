@@ -1,0 +1,20 @@
+GCP ↔ Azure ↔ AWS
+
+For example:
+
+Capability	            GCP	                  Azure	                        AWS
+Object storage	        GCS	                 ADLS Gen2	                    S3
+Data warehouse	        BigQuery	         Synapse / Fabric Warehouse	    Redshift
+Messaging	            Pub/Sub	             Service Bus	                SQS/SNS
+Event streaming	        Pub/Sub	             Event Hubs	                    Kinesis
+Compute	                Compute Engine	     Azure VM	                    EC2
+Kubernetes	            GKE	                 AKS	                        EKS
+Serverless	            Cloud Run	         Container Apps / Functions	    Lambda
+Managed Spark	        Dataproc	         Azure Databricks / HDInsight	EMR
+Secrets	                Secret Manager	     Key Vault	                    Secrets Manager
+IAM	                    Cloud IAM	         Azure RBAC / Entra ID	        IAM
+Monitoring	          Cloud Monitoring	     Azure Monitor	                CloudWatch
+Data integration	 Data Fusion/Composer    Data Factory	                Glue                        	
+Orchestration	        Composer	         Data Factory / Airflow	        MWAA / Step Functions
+IaC	                    Terraform	         Terraform	                    Terraform
+Container registry	  Artifact Registry	     ACR	                        ECR
