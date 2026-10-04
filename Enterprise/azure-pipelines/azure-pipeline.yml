@@ -1,0 +1,148 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - "*"
+
+variables:
+  - name: REGISTRY_URL_TEST
+    value: 'northamerica-northeast1-docker.pkg.dev'
+
+  - name: IMAGE_PATH_TEST
+    value: 'prj-n-cdp-ingestion/airflow/custom-airflow'
+
+
+stages:
+
+  # ================================================================================================
+  # UNIT TESTS
+  # ================================================================================================
+
+  - stage: unit_tests
+    displayName: 'PR Unit Tests'
+
+    jobs:
+      - job: manual_container_test
+        displayName: 'Run Tests in Docker'
+
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+
+          - checkout: self
+
+
+          # ----------------------------------------------------------------------------------------
+          # DOWNLOAD GCP KEY
+          # ----------------------------------------------------------------------------------------
+
+          - task: DownloadSecureFile@1
+            name: test_key
+            inputs:
+              secureFile: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+
+
+          # ----------------------------------------------------------------------------------------
+          # DOCKER LOGIN AND PULL
+          # ----------------------------------------------------------------------------------------
+
+          - script: |
+              cat $(test_key.secureFilePath) | \
+                docker login \
+                -u _json_key \
+                --password-stdin \
+                https://$(REGISTRY_URL_TEST)
+
+              docker pull \
+                $(REGISTRY_URL_TEST)/$(IMAGE_PATH_TEST):latest
+            displayName: 'Docker Login and Pull'
+
+
+          # ----------------------------------------------------------------------------------------
+          # RUN PYTEST
+          # ----------------------------------------------------------------------------------------
+
+          - script: |
+              docker run --rm \
+                -v $(Build.SourcesDirectory):/workspace \
+                -w /workspace \
+                -e PYTHONPATH=/workspace:/workspace/plugins \
+                -e PYTEST_ADDOPTS="-p no:cacheprovider" \
+                $(REGISTRY_URL_TEST)/$(IMAGE_PATH_TEST):latest \
+                bash -c "pip install -r requirements.txt -q && pytest Tests/ -v"
+            displayName: 'Run Pytest inside pulled image'
+
+
+  # ================================================================================================
+  # TEST DEPLOYMENT
+  # ================================================================================================
+
+  - stage: deploy_test
+    displayName: 'Deploy Airflow to TEST'
+
+    dependsOn: unit_tests
+
+    condition: and(
+      succeeded(),
+      eq(variables['Build.SourceBranch'], 'refs/heads/main')
+    )
+
+    jobs:
+
+      - deployment: copy_files
+        displayName: 'Deploy Changed Files to TEST'
+
+        environment: 'Test - Airflow DAGS'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+
+                - checkout: self
+                  fetchDepth: 0
+
+                - template: azure-pipelines/deploy-airflow.yml
+                  parameters:
+                    airflow_bucket: 'bkt-prj-n-cdp-ingestion-airflow_dag'
+                    gcp_secure_file: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+
+
+  # ================================================================================================
+  # PRODUCTION DEPLOYMENT
+  # ================================================================================================
+
+  - stage: deploy_prod
+    displayName: 'Deploy Airflow to PROD'
+
+    dependsOn: deploy_test
+
+    condition: and(
+      succeeded(),
+      eq(variables['Build.SourceBranch'], 'refs/heads/main')
+    )
+
+    jobs:
+
+      - deployment: sync_to_prod
+        displayName: 'Deploy Changed Files to PROD'
+
+        environment: 'Prod - Airflow DAGS'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+
+                - checkout: self
+                  fetchDepth: 0
+
+                - template: azure-pipelines/deploy-airflow.yml
+                  parameters:
+                    airflow_bucket: 'bkt-prj-p-cdp-ingestion-airflow_dag'
+                    gcp_secure_file: 'sa-gkecreator@prj-p-cdp-ingestion.json'

@@ -1,0 +1,482 @@
+The Canam version differs in two important ways:
+
+DAGS/ and plugins/ are at the repository root.
+TEST and PROD use different GCP service-account secure files, so the template accepts gcp_secure_file as a parameter.
+
+I would use these two files.
+
+1. azure-pipelines/deploy-airflow.yml
+
+Create:
+
+azure-pipelines/
+└── deploy-airflow.yml
+parameters:
+- name: airflow_bucket
+  type: string
+
+- name: gcp_secure_file
+  type: string
+
+steps:
+
+# ==================================================================================================
+# GCP AUTHENTICATION
+# ==================================================================================================
+
+- task: DownloadSecureFile@1
+  name: google_credentials
+  inputs:
+    secureFile: '${{ parameters.gcp_secure_file }}'
+  displayName: 'Download GCP Service Account Key'
+
+- script: |
+    gcloud auth activate-service-account \
+      --key-file=$(google_credentials.secureFilePath)
+  displayName: 'Authenticate with GCP'
+
+
+# ==================================================================================================
+# DEPLOY DAG FILES
+# ==================================================================================================
+
+- script: |
+    echo "Deploying changed DAG files..."
+    echo "Target bucket: gs://${{ parameters.airflow_bucket }}"
+
+    git diff --name-status -M HEAD~1 HEAD |
+    while read -r status old_path new_path
+    do
+
+      # --------------------------------------------------------------------------------------------
+      # RENAMED FILE
+      # --------------------------------------------------------------------------------------------
+
+      if [[ "$status" == R* ]]; then
+
+        if [[ "$old_path" != DAGS/* ||
+              "$new_path" != DAGS/* ]]
+        then
+          continue
+        fi
+
+        old_relative="${old_path#DAGS/}"
+        new_relative="${new_path#DAGS/}"
+
+        echo "Renamed DAG:"
+        echo "$old_relative -> $new_relative"
+
+        gcloud storage rm \
+          "gs://${{ parameters.airflow_bucket }}/dags/$old_relative" \
+          --quiet \
+          || true
+
+        gcloud storage cp \
+          "$(Build.SourcesDirectory)/DAGS/$new_relative" \
+          "gs://${{ parameters.airflow_bucket }}/dags/$new_relative"
+
+        continue
+      fi
+
+
+      # --------------------------------------------------------------------------------------------
+      # ADD / MODIFY / DELETE
+      # --------------------------------------------------------------------------------------------
+
+      if [[ "$status" != "A" &&
+            "$status" != "M" &&
+            "$status" != "D" ]]
+      then
+        continue
+      fi
+
+      if [[ "$old_path" != DAGS/* ]]
+      then
+        continue
+      fi
+
+      relative_path="${old_path#DAGS/}"
+
+      echo "DAG status: $status"
+      echo "DAG: $relative_path"
+
+
+      # --------------------------------------------------------------------------------------------
+      # DELETE
+      # --------------------------------------------------------------------------------------------
+
+      if [[ "$status" == "D" ]]; then
+
+        gcloud storage rm \
+          "gs://${{ parameters.airflow_bucket }}/dags/$relative_path" \
+          --quiet \
+          || true
+
+
+      # --------------------------------------------------------------------------------------------
+      # ADD / MODIFY
+      # --------------------------------------------------------------------------------------------
+
+      else
+
+        gcloud storage cp \
+          "$(Build.SourcesDirectory)/DAGS/$relative_path" \
+          "gs://${{ parameters.airflow_bucket }}/dags/$relative_path"
+
+      fi
+
+    done
+  displayName: 'Deploy Changed DAG Files'
+
+
+# ==================================================================================================
+# DEPLOY PLUGIN FILES
+# ==================================================================================================
+
+- script: |
+    echo "Deploying changed plugin files..."
+    echo "Target bucket: gs://${{ parameters.airflow_bucket }}"
+
+    git diff --name-status -M HEAD~1 HEAD |
+    while read -r status old_path new_path
+    do
+
+      # --------------------------------------------------------------------------------------------
+      # RENAMED FILE
+      # --------------------------------------------------------------------------------------------
+
+      if [[ "$status" == R* ]]; then
+
+        if [[ "$old_path" != plugins/* ||
+              "$new_path" != plugins/* ]]
+        then
+          continue
+        fi
+
+        old_relative="${old_path#plugins/}"
+        new_relative="${new_path#plugins/}"
+
+        echo "Renamed plugin:"
+        echo "$old_relative -> $new_relative"
+
+        gcloud storage rm \
+          "gs://${{ parameters.airflow_bucket }}/plugins/$old_relative" \
+          --quiet \
+          || true
+
+        gcloud storage cp \
+          "$(Build.SourcesDirectory)/plugins/$new_relative" \
+          "gs://${{ parameters.airflow_bucket }}/plugins/$new_relative"
+
+        continue
+      fi
+
+
+      # --------------------------------------------------------------------------------------------
+      # ADD / MODIFY / DELETE
+      # --------------------------------------------------------------------------------------------
+
+      if [[ "$status" != "A" &&
+            "$status" != "M" &&
+            "$status" != "D" ]]
+      then
+        continue
+      fi
+
+      if [[ "$old_path" != plugins/* ]]
+      then
+        continue
+      fi
+
+      relative_path="${old_path#plugins/}"
+
+      echo "Plugin status: $status"
+      echo "Plugin: $relative_path"
+
+
+      # --------------------------------------------------------------------------------------------
+      # DELETE
+      # --------------------------------------------------------------------------------------------
+
+      if [[ "$status" == "D" ]]; then
+
+        gcloud storage rm \
+          "gs://${{ parameters.airflow_bucket }}/plugins/$relative_path" \
+          --quiet \
+          || true
+
+
+      # --------------------------------------------------------------------------------------------
+      # ADD / MODIFY
+      # --------------------------------------------------------------------------------------------
+
+      else
+
+        gcloud storage cp \
+          "$(Build.SourcesDirectory)/plugins/$relative_path" \
+          "gs://${{ parameters.airflow_bucket }}/plugins/$relative_path"
+
+      fi
+
+    done
+  displayName: 'Deploy Changed Plugin Files'
+2. azure-pipeline.yml
+
+This is the main Canam pipeline.
+
+I have removed the unused python_version variable and removed the unnecessary curl installation of gcloud.
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - "*"
+
+variables:
+  - name: REGISTRY_URL_TEST
+    value: 'northamerica-northeast1-docker.pkg.dev'
+
+  - name: IMAGE_PATH_TEST
+    value: 'prj-n-cdp-ingestion/airflow/custom-airflow'
+
+
+stages:
+
+  # ================================================================================================
+  # UNIT TESTS
+  # ================================================================================================
+
+  - stage: unit_tests
+    displayName: 'PR Unit Tests'
+
+    jobs:
+      - job: manual_container_test
+        displayName: 'Run Tests in Docker'
+
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+
+          - checkout: self
+
+
+          # ----------------------------------------------------------------------------------------
+          # DOWNLOAD GCP KEY
+          # ----------------------------------------------------------------------------------------
+
+          - task: DownloadSecureFile@1
+            name: test_key
+            inputs:
+              secureFile: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+
+
+          # ----------------------------------------------------------------------------------------
+          # DOCKER LOGIN AND PULL
+          # ----------------------------------------------------------------------------------------
+
+          - script: |
+              cat $(test_key.secureFilePath) | \
+                docker login \
+                -u _json_key \
+                --password-stdin \
+                https://$(REGISTRY_URL_TEST)
+
+              docker pull \
+                $(REGISTRY_URL_TEST)/$(IMAGE_PATH_TEST):latest
+            displayName: 'Docker Login and Pull'
+
+
+          # ----------------------------------------------------------------------------------------
+          # RUN PYTEST
+          # ----------------------------------------------------------------------------------------
+
+          - script: |
+              docker run --rm \
+                -v $(Build.SourcesDirectory):/workspace \
+                -w /workspace \
+                -e PYTHONPATH=/workspace:/workspace/plugins \
+                -e PYTEST_ADDOPTS="-p no:cacheprovider" \
+                $(REGISTRY_URL_TEST)/$(IMAGE_PATH_TEST):latest \
+                bash -c "pip install -r requirements.txt -q && pytest Tests/ -v"
+            displayName: 'Run Pytest inside pulled image'
+
+
+  # ================================================================================================
+  # TEST DEPLOYMENT
+  # ================================================================================================
+
+  - stage: deploy_test
+    displayName: 'Deploy Airflow to TEST'
+
+    dependsOn: unit_tests
+
+    condition: and(
+      succeeded(),
+      eq(variables['Build.SourceBranch'], 'refs/heads/main')
+    )
+
+    jobs:
+
+      - deployment: copy_files
+        displayName: 'Deploy Changed Files to TEST'
+
+        environment: 'Test - Airflow DAGS'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+
+                - checkout: self
+                  fetchDepth: 0
+
+                - template: azure-pipelines/deploy-airflow.yml
+                  parameters:
+                    airflow_bucket: 'bkt-prj-n-cdp-ingestion-airflow_dag'
+                    gcp_secure_file: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+
+
+  # ================================================================================================
+  # PRODUCTION DEPLOYMENT
+  # ================================================================================================
+
+  - stage: deploy_prod
+    displayName: 'Deploy Airflow to PROD'
+
+    dependsOn: deploy_test
+
+    condition: and(
+      succeeded(),
+      eq(variables['Build.SourceBranch'], 'refs/heads/main')
+    )
+
+    jobs:
+
+      - deployment: sync_to_prod
+        displayName: 'Deploy Changed Files to PROD'
+
+        environment: 'Prod - Airflow DAGS'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+
+                - checkout: self
+                  fetchDepth: 0
+
+                - template: azure-pipelines/deploy-airflow.yml
+                  parameters:
+                    airflow_bucket: 'bkt-prj-p-cdp-ingestion-airflow_dag'
+                    gcp_secure_file: 'sa-gkecreator@prj-p-cdp-ingestion.json'
+What changed from your current Canam pipeline
+Unit tests
+
+This stays essentially the same:
+
+PR/main
+   │
+   ▼
+unit_tests
+   │
+   ├── Docker login
+   ├── Pull custom Airflow image
+   └── pytest
+
+The python_version variable was removed because nothing in the pipeline uses it.
+
+TEST
+
+Before:
+
+Download key
+     ↓
+Install gcloud
+     ↓
+Authenticate
+     ↓
+COPY ALL DAGS
+     ↓
+COPY ALL plugins
+
+Now:
+
+checkout fetchDepth: 0
+        ↓
+deploy-airflow.yml
+        ↓
+authenticate
+        ↓
+git diff HEAD~1 HEAD
+        ↓
+┌───────────────┬────────────────┐
+│ DAGS          │ plugins        │
+├───────────────┼────────────────┤
+│ A → upload    │ A → upload     │
+│ M → upload    │ M → upload     │
+│ D → delete    │ D → delete     │
+│ R → rename    │ R → rename     │
+└───────────────┴────────────────┘
+        ↓
+bkt-prj-n-cdp-ingestion-airflow_dag
+PROD
+
+Exactly the same deployment logic, but the main pipeline supplies:
+
+airflow_bucket: 'bkt-prj-p-cdp-ingestion-airflow_dag'
+gcp_secure_file: 'sa-gkecreator@prj-p-cdp-ingestion.json'
+
+That's the main benefit of the template.
+
+One important difference from AdventureWorks
+
+AdventureWorks had:
+
+airflow_bucket
+
+as its only parameter because TEST and PROD could use the same service-account secure file.
+
+Canam needs:
+
+airflow_bucket
+gcp_secure_file
+
+because:
+
+TEST
+sa-gkecreator@prj-n-cdp-ingestion.json
+        │
+        ▼
+bkt-prj-n-cdp-ingestion-airflow_dag
+
+
+PROD
+sa-gkecreator@prj-p-cdp-ingestion.json
+        │
+        ▼
+bkt-prj-p-cdp-ingestion-airflow_dag
+
+That separation is appropriate for the Canam production architecture.
+
+Before committing
+
+Since this is Canam, I recommend not changing anything else yet.
+
+First create the two files and run YAML parsing locally.
+
+If your main pipeline really is named azure-pipeline.yml, use that exact filename. If the existing Canam pipeline has a different filename, keep the existing filename and put the contents above into that existing file rather than renaming it.
+
+Then validate:
+
+python -c "import yaml; yaml.safe_load(open('azure-pipeline.yml')); yaml.safe_load(open('azure-pipelines/deploy-airflow.yml')); print('YAML syntax OK')"
+
+Then:
+
+git diff --check
+
+At this point don't commit yet. First we should inspect the resulting diff and verify that the template paths and Canam pipeline structure are exactly what we want.

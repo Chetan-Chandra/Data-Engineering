@@ -1,0 +1,1152 @@
+Canam Airflow Sandbox — End-to-End Implementation Plan
+0. Target architecture
+
+Your existing TEST environment is approximately:
+
+Azure DevOps
+    │
+    ├── cdp-airflow-dag
+    │
+    ├── custom-airflow image
+    │      │
+    │      ▼
+    │   Artifact Registry
+    │
+    ▼
+TEST GCS
+bkt-prj-n-cdp-ingestion-airflow_dag
+    │
+    ▼
+TEST Airflow on GKE
+gke-n-cdpairflow-nane1
+    │
+    ├── Scheduler
+    ├── DAG processor
+    ├── Workers
+    └── Airflow UI
+
+You want:
+
+Azure DevOps
+    │
+    ├── cdp-airflow-dag-sandbox
+    │
+    ├── sandbox custom-airflow image
+    │      │
+    │      ▼
+    │   Artifact Registry
+    │
+    ▼
+SANDBOX GCS
+bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+    │
+    ▼
+SANDBOX AIRFLOW
+    │
+    ├── Sandbox Scheduler
+    ├── Sandbox DAG processor
+    ├── Sandbox Workers
+    └── Sandbox Airflow UI
+
+The key is that nothing in the sandbox deployment path should point back to TEST except shared infrastructure that you intentionally choose to share.
+
+Phase 1 — Decide exactly what is isolated
+
+Before creating anything, define these boundaries.
+
+Component	Existing TEST	Sandbox
+Azure repo	cdp-airflow-dag	cdp-airflow-dag-sandbox
+GCS DAG bucket	bkt-prj-n-cdp-ingestion-airflow_dag	bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+GCS log bucket	existing TEST log bucket	new sandbox log bucket
+Artifact Registry	existing Airflow image	sandbox image/repository or sandbox image tag
+Airflow GKE runtime	TEST Airflow	sandbox Airflow workload
+Airflow UI	airflow-analytics-test...	new sandbox hostname
+Airflow metadata DB	TEST Cloud SQL	sandbox DB/database
+Azure DevOps environment	Test - Airflow DAGS	Sandbox - Airflow DAGS
+GCP deployment identity	TEST identity	preferably sandbox-specific identity
+Kubernetes namespace	TEST namespace	sandbox namespace
+Kubernetes ServiceAccount	TEST KSA	sandbox KSA
+GCS permissions	TEST bucket	sandbox bucket
+Secrets	TEST secrets	sandbox secrets
+Pipeline	TEST pipeline	sandbox pipeline
+
+This is important because otherwise you can accidentally create:
+
+Sandbox DAG bucket
+        ↓
+TEST Airflow
+
+which would not be an isolated sandbox.
+
+Phase 2 — GCP project and APIs
+
+Your sandbox is staying inside:
+
+prj-n-cdp-ingestion
+
+That's perfectly reasonable.
+
+You don't need another GCP project just to create an isolated Airflow environment.
+
+First verify the required APIs:
+
+gcloud services list --enabled --project=prj-n-cdp-ingestion
+
+You should have the APIs required by your existing architecture, especially:
+
+container.googleapis.com
+artifactregistry.googleapis.com
+storage.googleapis.com
+sqladmin.googleapis.com
+iam.googleapis.com
+iamcredentials.googleapis.com
+
+If the existing TEST infrastructure already uses them, you generally don't need to enable them again.
+
+Phase 3 — Sandbox GCS buckets
+
+You've already created:
+
+gs://bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+
+Good.
+
+But don't stop there.
+
+Your Airflow installation also needs logging.
+
+Existing TEST has:
+
+bkt-prj-n-cdp-ingestion-airflow_dag
+bkt-prj-n-cdp-ingestion-airflow_log
+
+So create:
+
+gs://bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+gs://bkt-prj-n-cdp-ingestion-airflow_log-sandbox
+
+The second one is important.
+
+You don't want sandbox Airflow logs mixed with TEST logs.
+
+Phase 4 — GCS bucket IAM
+
+This is where you need to be careful.
+
+Your existing Canam GKE workload identity uses:
+
+sa-kubtogcp@prj-n-cdp-ingestion.iam.gserviceaccount.com
+
+Your sandbox could technically reuse that service account, with bucket-level permissions added only to the sandbox bucket.
+
+However, for proper environment isolation, I recommend:
+
+sa-kubtogcp-sandbox@prj-n-cdp-ingestion.iam.gserviceaccount.com
+
+rather than reusing the TEST identity.
+
+Google recommends Workload Identity Federation for GKE for fine-grained workload access rather than service-account keys.
+
+Sandbox GCP service account
+
+Create:
+
+sa-kubtogcp-sandbox
+
+Then give it only the permissions that sandbox Airflow actually requires.
+
+For the Airflow DAG bucket, the exact role depends on how your GCS FUSE CSI configuration accesses the bucket.
+
+At minimum, if Airflow needs to read objects:
+
+roles/storage.objectViewer
+
+If Airflow itself needs to create/update/delete objects:
+
+roles/storage.objectAdmin
+
+Do not automatically give project-wide Storage Admin.
+
+Grant access at the bucket level.
+
+For example:
+
+gcloud storage buckets add-iam-policy-binding \
+  gs://bkt-prj-n-cdp-ingestion-airflow_dag-sandbox \
+  --member="serviceAccount:sa-kubtogcp-sandbox@prj-n-cdp-ingestion.iam.gserviceaccount.com" \
+  --role="roles/storage.objectAdmin"
+
+And similarly for logs if your Airflow design requires direct GCS access.
+
+The principle should be:
+
+Sandbox service account
+        │
+        ├── READ/WRITE → sandbox DAG bucket
+        │
+        └── READ/WRITE → sandbox log bucket
+
+and not:
+
+Sandbox service account
+        │
+        └── Storage Admin → entire project
+Phase 5 — GKE isolation
+
+This is the biggest part.
+
+You already have:
+
+GKE:
+gke-n-cdpairflow-nane1
+
+You have two choices.
+
+Recommended for your situation
+
+Keep the existing GKE cluster but create a separate Kubernetes namespace:
+
+airflow-test
+airflow-sandbox
+
+For example:
+
+GKE cluster
+gke-n-cdpairflow-nane1
+       │
+       ├── namespace: airflow-test
+       │      └── TEST Airflow
+       │
+       └── namespace: airflow-sandbox
+              └── SANDBOX Airflow
+
+This is much cheaper and simpler than creating another GKE cluster.
+
+But the sandbox must have its own:
+
+Kubernetes namespace
+Kubernetes ServiceAccount
+Airflow Helm release
+Airflow configuration
+Airflow metadata DB
+GCS mounts
+secrets
+service
+ingress/hostname
+Phase 6 — Sandbox Kubernetes ServiceAccount
+
+Create something such as:
+
+airflow-sandbox
+
+inside:
+
+namespace: airflow-sandbox
+
+Then bind it to:
+
+sa-kubtogcp-sandbox@prj-n-cdp-ingestion.iam.gserviceaccount.com
+
+This gives:
+
+Kubernetes:
+
+namespace
+    airflow-sandbox
+         │
+         ▼
+KSA
+airflow-sandbox
+         │
+         ▼
+GCP IAM
+sa-kubtogcp-sandbox
+         │
+         ├── sandbox DAG bucket
+         └── sandbox log bucket
+
+This is the preferred direction with Workload Identity Federation for GKE.
+
+Phase 7 — Sandbox Airflow metadata database
+
+This is an item you did not explicitly mention, but it is critical.
+
+Airflow needs its metadata database.
+
+Your existing environment has:
+
+Cloud SQL
+prj-n-cdp-ingestion:northamerica-northeast1:airflow-postgres
+
+Do not point sandbox Airflow at the TEST Airflow metadata database.
+
+Otherwise you could have:
+
+TEST Airflow
+       │
+       ▼
+same Airflow metadata DB
+       ▲
+       │
+Sandbox Airflow
+
+That is not isolated.
+
+You have two good designs.
+
+Option A — Separate Cloud SQL database
+
+Same Cloud SQL instance:
+
+airflow-postgres
+      │
+      ├── airflow_test
+      │
+      └── airflow_sandbox
+
+This is the cheaper option.
+
+Option B — Separate Cloud SQL instance
+airflow-postgres-test
+airflow-postgres-sandbox
+
+This provides stronger isolation but costs more.
+
+For a sandbox, I'd generally start with:
+
+same Cloud SQL instance + separate Airflow database/schema, assuming your organization's operational/security requirements allow it.
+
+But the sandbox must have its own Airflow metadata database, not merely its own DAG bucket.
+
+Phase 8 — Sandbox Airflow image
+
+You also correctly identified this.
+
+Your existing image is:
+
+northamerica-northeast1-docker.pkg.dev/prj-n-cdp-ingestion/airflow/custom-airflow:162729
+
+Don't overwrite it.
+
+You have two approaches.
+
+Recommended
+
+Create a separate Artifact Registry repository:
+
+airflow-sandbox
+
+so the architecture becomes:
+
+Artifact Registry
+
+airflow/
+    custom-airflow:162729
+    custom-airflow:...
+
+airflow-sandbox/
+    custom-airflow:...
+
+Then:
+
+Sandbox image:
+
+northamerica-northeast1-docker.pkg.dev/
+prj-n-cdp-ingestion/
+airflow-sandbox/
+custom-airflow:<version>
+
+This is much safer than relying only on tags.
+
+Phase 9 — Build the sandbox Airflow image
+
+Your existing Dockerfile should become the starting point.
+
+For example:
+
+cdp-airflow-dag-sandbox/
+│
+├── Dockerfile
+├── requirements.txt
+├── DAGS/
+├── plugins/
+├── Tests/
+└── azure-pipeline.yml
+
+Build:
+
+docker build -t northamerica-northeast1-docker.pkg.dev/prj-n-cdp-ingestion/airflow-sandbox/custom-airflow:1.0.0 .
+
+Authenticate:
+
+gcloud auth configure-docker northamerica-northeast1-docker.pkg.dev
+
+Push:
+
+docker push northamerica-northeast1-docker.pkg.dev/prj-n-cdp-ingestion/airflow-sandbox/custom-airflow:1.0.0
+
+Then verify:
+
+gcloud artifacts docker images list `
+  northamerica-northeast1-docker.pkg.dev/prj-n-cdp-ingestion/airflow-sandbox
+Phase 10 — Artifact Registry IAM
+
+You need two different access patterns.
+
+Azure DevOps
+
+Your CI/CD identity needs permission to push the sandbox image.
+
+Prefer:
+
+roles/artifactregistry.writer
+
+on the sandbox repository rather than broad project-wide Artifact Registry Admin.
+
+Artifact Registry supports repository-level IAM, and Google specifically recommends configuring permissions at the repository level when appropriate.
+
+GKE
+
+The GKE workload/node identity needs permission to pull the image.
+
+Typically:
+
+roles/artifactregistry.reader
+
+on the repository.
+
+So:
+
+Azure DevOps
+     │
+     └── Artifact Registry Writer
+                  │
+                  ▼
+          airflow-sandbox
+                  ▲
+                  │
+     Artifact Registry Reader
+                  │
+                  GKE
+Phase 11 — Sandbox Airflow Helm release
+
+This is another critical isolation point.
+
+Don't modify the existing TEST Helm release.
+
+Create another release, for example:
+
+airflow-sandbox
+
+inside:
+
+namespace: airflow-sandbox
+
+Conceptually:
+
+TEST
+
+namespace: airflow-test
+Helm release: airflow
+
+
+SANDBOX
+
+namespace: airflow-sandbox
+Helm release: airflow-sandbox
+
+Your sandbox Helm values should point to:
+
+Sandbox image
+Sandbox DAG bucket
+Sandbox log bucket
+Sandbox KSA
+Sandbox metadata DB
+Sandbox secrets
+Phase 12 — Sandbox DAG source
+
+Your new repo:
+
+cdp-airflow-dag-sandbox
+
+should deploy only to:
+
+gs://bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+
+Your new reusable pipeline template can therefore use:
+
+parameters:
+- name: airflow_bucket
+  type: string
+
+- name: gcp_secure_file
+  type: string
+
+and Sandbox's main pipeline supplies:
+
+airflow_bucket: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+
+No TEST bucket should appear anywhere in the sandbox deployment pipeline.
+
+Phase 13 — Azure DevOps repository
+
+You've already created:
+
+cdp-airflow-dag-sandbox
+
+Good.
+
+Clone/copy the Canam Airflow source into it.
+
+But before copying everything blindly, inspect:
+
+Dockerfile
+requirements.txt
+DAGS/
+plugins/
+Tests/
+Terraform/
+Helm/
+values files
+azure-pipeline.yml
+
+The important question is:
+
+Which configuration files contain TEST-specific infrastructure references?
+
+Search the repo for:
+
+git grep -n "bkt-prj-n-cdp-ingestion-airflow_dag"
+
+and:
+
+git grep -n "airflow-analytics-test"
+
+and:
+
+git grep -n "airflow-postgres"
+
+and:
+
+git grep -n "gke-n-cdpairflow-nane1"
+
+and:
+
+git grep -n "custom-airflow"
+
+You want to identify every TEST dependency before deploying the sandbox.
+
+Phase 14 — Azure DevOps environment
+
+Create:
+
+Sandbox - Airflow DAGS
+
+This is important because your deployment job should be:
+
+environment: 'Sandbox - Airflow DAGS'
+
+Do not reuse:
+
+Test - Airflow DAGS
+
+This gives you independent environment approvals/checks if your organization uses them.
+
+Phase 15 — Azure DevOps variables
+
+Create sandbox-specific variables.
+
+For example:
+
+GCP_PROJECT_ID
+    prj-n-cdp-ingestion
+
+AIRFLOW_BUCKET
+    bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+
+AIRFLOW_LOG_BUCKET
+    bkt-prj-n-cdp-ingestion-airflow_log-sandbox
+
+ARTIFACT_REGISTRY
+    northamerica-northeast1-docker.pkg.dev
+
+AIRFLOW_IMAGE_REPOSITORY
+    prj-n-cdp-ingestion/airflow-sandbox/custom-airflow
+
+If the pipeline uses separate variables for these, keep them explicit.
+
+Phase 16 — Azure DevOps secure files
+
+You currently have:
+
+sa-gkecreator@prj-n-cdp-ingestion.json
+
+used by TEST.
+
+For proper isolation, I'd avoid making the sandbox pipeline depend on a production/test credential unless that service account is deliberately intended for sandbox use.
+
+Prefer creating:
+
+sa-gkecreator-sandbox@prj-n-cdp-ingestion.iam.gserviceaccount.com
+
+and uploading its key only if your current Azure DevOps authentication design still requires service-account keys.
+
+However, there is an architectural improvement worth considering: Google recommends Workload Identity Federation over long-lived service-account keys where possible.
+
+Since your current Canam pipeline already uses secure JSON keys, don't redesign Azure DevOps authentication at the same time as the Airflow sandbox. Get the sandbox working first, then migrate CI/CD authentication separately.
+
+That keeps troubleshooting manageable.
+
+Phase 17 — Sandbox pipeline
+
+Your sandbox pipeline should conceptually be:
+
+PR
+ │
+ ▼
+Unit Tests
+ │
+ ▼
+Build Sandbox Airflow Image
+ │
+ ▼
+Push to Artifact Registry
+ │
+ ▼
+Deploy DAG/plugin changes
+ │
+ ▼
+Sandbox GCS
+ │
+ ▼
+Sandbox Airflow
+
+And it should never deploy to:
+
+bkt-prj-n-cdp-ingestion-airflow_dag
+
+or:
+
+airflow-analytics-test.canamgroupinc.com
+Phase 18 — Sandbox Airflow UI
+
+You need a separate hostname.
+
+Existing:
+
+airflow-analytics-test.canamgroupinc.com
+
+Sandbox could be something like:
+
+airflow-analytics-sandbox.canamgroupinc.com
+
+subject to your organization's DNS naming convention.
+
+You then need:
+
+DNS
+  ↓
+Load Balancer / Ingress
+  ↓
+airflow-sandbox service
+  ↓
+Airflow webserver/API
+
+And if TLS is used:
+
+airflow-analytics-sandbox.canamgroupinc.com
+              ↓
+          TLS certificate
+
+Do not point the sandbox hostname to the TEST Airflow service.
+
+Phase 19 — Sandbox secrets
+
+This is another area that is easy to miss.
+
+Search the existing Airflow Helm configuration for:
+
+Secret
+Secret Manager
+Connection
+Variable
+Credential
+
+Airflow may have connections such as:
+
+GCP
+Snowflake
+SQL Server
+Oracle
+RabbitMQ
+CloudAMQP
+
+Do not automatically copy production credentials into sandbox.
+
+Create sandbox versions where appropriate:
+
+snowflake-sandbox
+sqlserver-sandbox
+oracle-sandbox
+rabbitmq-sandbox
+
+or deliberately allow read-only access to a controlled test source.
+
+The sandbox's biggest security rule should be:
+
+Sandbox Airflow must not accidentally execute against production systems.
+
+Phase 20 — Snowflake isolation
+
+This is another thing you didn't mention but is very important given your Canam architecture.
+
+Your pipeline is:
+
+Source
+ ↓
+Airflow
+ ↓
+GCS
+ ↓
+Pub/Sub
+ ↓
+Snowpipe
+ ↓
+Snowflake
+
+If sandbox Airflow uses the same Snowflake destination as TEST, then you don't have full isolation.
+
+Ideally create:
+
+SANDBOX
+    │
+    ├── Snowflake database/schema
+    ├── stages
+    ├── pipes
+    └── tables
+
+separate from:
+
+TEST
+
+For example conceptually:
+
+ADVWORKS/Canam SANDBOX
+       ↓
+LANDING_SANDBOX
+PREPARE_SANDBOX
+NORMALIZE_SANDBOX
+...
+
+The exact naming should follow Canam's existing Snowflake conventions.
+
+Phase 21 — Pub/Sub isolation
+
+Your architecture uses Pub/Sub around GCS/Snowpipe.
+
+If sandbox uses the same Pub/Sub topics/subscriptions as TEST, events can cross environments.
+
+Therefore check:
+
+GCS sandbox
+      ↓
+Pub/Sub
+      ↓
+Snowpipe sandbox
+
+Create sandbox-specific:
+
+Pub/Sub topic
+Pub/Sub subscription
+Snowpipe pipe/integration
+
+where the workflow requires them.
+
+You want:
+
+TEST GCS
+   ↓
+TEST Pub/Sub
+   ↓
+TEST Snowpipe
+
+
+SANDBOX GCS
+   ↓
+SANDBOX Pub/Sub
+   ↓
+SANDBOX Snowpipe
+Phase 22 — Terraform
+
+Since Canam infrastructure is Terraform-managed, don't manually create everything in GCP and leave Terraform unaware of it.
+
+This is especially important for:
+
+GCS buckets
+IAM
+Artifact Registry
+GKE namespace/configuration
+Service accounts
+Workload Identity
+Cloud SQL
+Pub/Sub
+Snowflake integration
+
+The final state should be represented in Terraform.
+
+For example:
+
+terraform/
+│
+├── environments/
+│   ├── test/
+│   └── sandbox/
+│
+├── modules/
+│   ├── airflow/
+│   ├── gcs/
+│   ├── artifact-registry/
+│   ├── iam/
+│   └── pubsub/
+
+You don't necessarily need to redesign the existing Terraform structure. First inspect how TEST is currently represented and introduce the sandbox as another environment/variable set.
+
+Phase 23 — IAM checklist
+
+Here's the practical checklist I'd give to your GCP/IAM administrator.
+
+Your sandbox deployment identity needs
+
+GCS
+
+Storage Object Admin
+
+on:
+
+bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+
+and potentially:
+
+bkt-prj-n-cdp-ingestion-airflow_log-sandbox
+
+depending on the deployment/runtime behavior.
+
+GKE runtime identity
+Storage Object Viewer
+
+or the minimum required bucket role for:
+
+bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+bkt-prj-n-cdp-ingestion-airflow_log-sandbox
+Artifact Registry
+
+Azure DevOps/build identity:
+
+roles/artifactregistry.writer
+
+Sandbox GKE image-pull identity:
+
+roles/artifactregistry.reader
+
+Artifact Registry's IAM model supports repository-level access, so you don't need to grant broad Artifact Registry Admin just to push/pull images.
+
+Workload Identity
+
+Sandbox KSA:
+
+airflow-sandbox
+
+→ sandbox GCP service account:
+
+sa-kubtogcp-sandbox
+
+→ sandbox GCS resources.
+
+If using service-account impersonation with GKE Workload Identity, the Kubernetes identity needs the appropriate roles/iam.workloadIdentityUser binding. Google documents both direct resource access and service-account impersonation approaches.
+
+Phase 24 — Final sandbox architecture
+
+Once everything is complete, you should have:
+
+                         CANAM SANDBOX
+                              │
+             ┌────────────────┴────────────────┐
+             │                                 │
+       Azure DevOps                      Artifact Registry
+             │                                 │
+ cdp-airflow-dag-sandbox                 airflow-sandbox
+             │                                 │
+             │                           custom-airflow
+             │                              :1.0.0
+             │                                 │
+             ▼                                 ▼
+       CI/CD Pipeline ───────────────────► GKE
+             │                         airflow-sandbox
+             │                              │
+             ▼                              │
+   GCS DAG Bucket                           │
+   bkt-prj-n-cdp-ingestion-                │
+   airflow_dag-sandbox                     │
+             │                              │
+             └──────────────────────────────┤
+                                            │
+                                     Sandbox namespace
+                                            │
+                              ┌─────────────┼─────────────┐
+                              │             │             │
+                         Scheduler       Workers       UI/API
+                              │             │             │
+                              └─────────────┼─────────────┘
+                                            │
+                                      Sandbox DB
+                                            │
+                                      Cloud SQL
+                                            │
+                              ┌─────────────┴─────────────┐
+                              │                           │
+                        Pub/Sub Sandbox             Snowflake
+                                                      Sandbox
+
+And completely separately:
+
+                 EXISTING TEST
+                      │
+             cdp-airflow-dag
+                      │
+                      ▼
+       bkt-prj-n-cdp-ingestion-airflow_dag
+                      │
+                      ▼
+              TEST Airflow
+Phase 25 — Implementation order
+
+This is the order I strongly recommend.
+
+Do not create the Azure pipeline first.
+
+Step 1 — Inventory TEST
+
+Document:
+
+GKE cluster
+namespace
+Helm release
+KSA
+GCP service account
+GCS DAG bucket
+GCS log bucket
+Artifact Registry repository
+Cloud SQL instance/database
+Secrets
+DNS
+Ingress
+Pub/Sub
+Snowflake
+Terraform modules
+Step 2 — Create sandbox GCS
+bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+bkt-prj-n-cdp-ingestion-airflow_log-sandbox
+Step 3 — Create sandbox IAM
+
+Create:
+
+sa-kubtogcp-sandbox
+
+and grant only sandbox resources.
+
+Step 4 — Create Artifact Registry sandbox repository
+airflow-sandbox
+Step 5 — Build and push sandbox Airflow image
+
+Example:
+
+northamerica-northeast1-docker.pkg.dev/
+prj-n-cdp-ingestion/
+airflow-sandbox/
+custom-airflow:1.0.0
+Step 6 — Create sandbox Kubernetes namespace
+airflow-sandbox
+Step 7 — Create sandbox KSA + Workload Identity
+airflow-sandbox
+       ↓
+sa-kubtogcp-sandbox
+Step 8 — Create sandbox Airflow metadata database
+
+Do not use the TEST Airflow metadata DB.
+
+Step 9 — Deploy sandbox Airflow Helm release
+
+Point it to:
+
+sandbox image
+sandbox bucket
+sandbox logs
+sandbox DB
+sandbox KSA
+sandbox secrets
+Step 10 — Verify sandbox Airflow UI
+
+Before touching CI/CD, make sure:
+
+Sandbox Airflow UI
+        ↓
+Sandbox scheduler
+        ↓
+Sandbox DAG processor
+        ↓
+Sandbox metadata DB
+        ↓
+Sandbox GCS
+
+works.
+
+Step 11 — Create Azure DevOps environment
+Sandbox - Airflow DAGS
+Step 12 — Configure Azure DevOps variables
+
+Sandbox-specific values only.
+
+Step 13 — Configure secure file/service account
+
+Prefer sandbox-specific identity.
+
+Step 14 — Create cdp-airflow-dag-sandbox
+
+with:
+
+DAGS/
+plugins/
+Tests/
+Dockerfile
+requirements.txt
+azure-pipeline.yml
+azure-pipelines/
+    deploy-airflow.yml
+Step 15 — Build sandbox image from the repo
+
+Push to:
+
+airflow-sandbox
+Step 16 — Deploy a harmless test DAG
+
+For example:
+
+sandbox_validation_dag.py
+Step 17 — Verify all three layers
+
+You should see:
+
+Git
+ ↓
+Azure DevOps
+ ↓
+GCS sandbox bucket
+ ↓
+Sandbox Airflow UI
+Step 18 — Test A/M/D/R
+
+Exactly like your AdventureWorks validation:
+
+A → add DAG
+M → modify DAG
+D → delete DAG
+R → rename DAG
+Step 19 — Test plugins
+A
+M
+D
+R
+Step 20 — Only then connect real sandbox workflows
+
+After that, bring in the real Canam DAGs/plugins.
+
+The most important things you were missing
+
+You already identified most of the visible pieces. The main things I'd add are:
+
+1. Sandbox Airflow metadata DB
+
+This is mandatory for true isolation.
+
+2. Sandbox GCS log bucket
+
+Don't share TEST logs.
+
+3. Sandbox Kubernetes namespace
+
+Don't just create another bucket while running the same Airflow deployment.
+
+4. Sandbox Kubernetes ServiceAccount
+
+Don't reuse TEST identity unnecessarily.
+
+5. Sandbox GCP service account
+
+Prefer a dedicated identity.
+
+6. Sandbox Artifact Registry repository/image
+
+Correctly identified by you.
+
+7. Sandbox Airflow Helm release
+
+The UI must actually point to the sandbox resources.
+
+8. Sandbox DNS/Ingress
+
+Otherwise you'll still be accessing TEST UI.
+
+9. Sandbox secrets/connections
+
+Particularly SQL Server, Oracle, RabbitMQ, Snowflake, etc.
+
+10. Sandbox Pub/Sub/Snowpipe path
+
+If you want to test the complete ingestion pipeline rather than only DAG execution.
+
+11. Terraform representation
+
+The sandbox infrastructure should ultimately be managed consistently with the existing Canam infrastructure.
+
+12. Network connectivity
+
+The sandbox Airflow pods still need connectivity to whatever sources they are supposed to test—SQL Server, Oracle, RabbitMQ/CloudAMQP, Snowflake, etc. A new namespace/bucket doesn't automatically give the pods network access.
+
+One architectural recommendation
+
+Don't try to build all of this simultaneously.
+
+Use these three milestones:
+
+MILESTONE 1
+Sandbox Airflow infrastructure
+        ↓
+Sandbox UI works
+        ↓
+Manual DAG works
+
+Then:
+
+MILESTONE 2
+Azure DevOps
+        ↓
+Sandbox Docker image
+        ↓
+Sandbox GCS deployment
+        ↓
+DAG appears in Sandbox UI
+
+Then:
+
+MILESTONE 3
+Complete pipeline
+        ↓
+GCS
+ ↓
+Pub/Sub
+ ↓
+Snowpipe
+ ↓
+Snowflake sandbox
+
+That separation will make troubleshooting dramatically easier.

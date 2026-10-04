@@ -1,0 +1,209 @@
+parameters:
+- name: airflow_bucket
+  type: string
+
+- name: gcp_secure_file
+  type: string
+
+steps:
+
+# ==================================================================================================
+# GCP AUTHENTICATION
+# ==================================================================================================
+
+- task: DownloadSecureFile@1
+  name: google_credentials
+  inputs:
+    secureFile: '${{ parameters.gcp_secure_file }}'
+  displayName: 'Download GCP Service Account Key'
+
+- script: |
+    gcloud auth activate-service-account \
+      --key-file=$(google_credentials.secureFilePath)
+  displayName: 'Authenticate with GCP'
+
+
+# ==================================================================================================
+# DEPLOY DAG FILES
+# ==================================================================================================
+
+- script: |
+    echo "Deploying changed DAG files..."
+    echo "Target bucket: gs://${{ parameters.airflow_bucket }}"
+
+    git diff --name-status -M HEAD~1 HEAD |
+    while read -r status old_path new_path
+    do
+
+      # --------------------------------------------------------------------------------------------
+      # RENAMED FILE
+      # --------------------------------------------------------------------------------------------
+
+      if [[ "$status" == R* ]]; then
+
+        if [[ "$old_path" != DAGS/* ||
+              "$new_path" != DAGS/* ]]
+        then
+          continue
+        fi
+
+        old_relative="${old_path#DAGS/}"
+        new_relative="${new_path#DAGS/}"
+
+        echo "Renamed DAG:"
+        echo "$old_relative -> $new_relative"
+
+        gcloud storage rm \
+          "gs://${{ parameters.airflow_bucket }}/dags/$old_relative" \
+          --quiet \
+          || true
+
+        gcloud storage cp \
+          "$(Build.SourcesDirectory)/DAGS/$new_relative" \
+          "gs://${{ parameters.airflow_bucket }}/dags/$new_relative"
+
+        continue
+      fi
+
+
+      # --------------------------------------------------------------------------------------------
+      # ADD / MODIFY / DELETE
+      # --------------------------------------------------------------------------------------------
+
+      if [[ "$status" != "A" &&
+            "$status" != "M" &&
+            "$status" != "D" ]]
+      then
+        continue
+      fi
+
+      if [[ "$old_path" != DAGS/* ]]
+      then
+        continue
+      fi
+
+      relative_path="${old_path#DAGS/}"
+
+      echo "DAG status: $status"
+      echo "DAG: $relative_path"
+
+
+      # --------------------------------------------------------------------------------------------
+      # DELETE
+      # --------------------------------------------------------------------------------------------
+
+      if [[ "$status" == "D" ]]; then
+
+        gcloud storage rm \
+          "gs://${{ parameters.airflow_bucket }}/dags/$relative_path" \
+          --quiet \
+          || true
+
+
+      # --------------------------------------------------------------------------------------------
+      # ADD / MODIFY
+      # --------------------------------------------------------------------------------------------
+
+      else
+
+        gcloud storage cp \
+          "$(Build.SourcesDirectory)/DAGS/$relative_path" \
+          "gs://${{ parameters.airflow_bucket }}/dags/$relative_path"
+
+      fi
+
+    done
+  displayName: 'Deploy Changed DAG Files'
+
+
+# ==================================================================================================
+# DEPLOY PLUGIN FILES
+# ==================================================================================================
+
+- script: |
+    echo "Deploying changed plugin files..."
+    echo "Target bucket: gs://${{ parameters.airflow_bucket }}"
+
+    git diff --name-status -M HEAD~1 HEAD |
+    while read -r status old_path new_path
+    do
+
+      # --------------------------------------------------------------------------------------------
+      # RENAMED FILE
+      # --------------------------------------------------------------------------------------------
+
+      if [[ "$status" == R* ]]; then
+
+        if [[ "$old_path" != plugins/* ||
+              "$new_path" != plugins/* ]]
+        then
+          continue
+        fi
+
+        old_relative="${old_path#plugins/}"
+        new_relative="${new_path#plugins/}"
+
+        echo "Renamed plugin:"
+        echo "$old_relative -> $new_relative"
+
+        gcloud storage rm \
+          "gs://${{ parameters.airflow_bucket }}/plugins/$old_relative" \
+          --quiet \
+          || true
+
+        gcloud storage cp \
+          "$(Build.SourcesDirectory)/plugins/$new_relative" \
+          "gs://${{ parameters.airflow_bucket }}/plugins/$new_relative"
+
+        continue
+      fi
+
+
+      # --------------------------------------------------------------------------------------------
+      # ADD / MODIFY / DELETE
+      # --------------------------------------------------------------------------------------------
+
+      if [[ "$status" != "A" &&
+            "$status" != "M" &&
+            "$status" != "D" ]]
+      then
+        continue
+      fi
+
+      if [[ "$old_path" != plugins/* ]]
+      then
+        continue
+      fi
+
+      relative_path="${old_path#plugins/}"
+
+      echo "Plugin status: $status"
+      echo "Plugin: $relative_path"
+
+
+      # --------------------------------------------------------------------------------------------
+      # DELETE
+      # --------------------------------------------------------------------------------------------
+
+      if [[ "$status" == "D" ]]; then
+
+        gcloud storage rm \
+          "gs://${{ parameters.airflow_bucket }}/plugins/$relative_path" \
+          --quiet \
+          || true
+
+
+      # --------------------------------------------------------------------------------------------
+      # ADD / MODIFY
+      # --------------------------------------------------------------------------------------------
+
+      else
+
+        gcloud storage cp \
+          "$(Build.SourcesDirectory)/plugins/$relative_path" \
+          "gs://${{ parameters.airflow_bucket }}/plugins/$relative_path"
+
+      fi
+
+    done
+  displayName: 'Deploy Changed Plugin Files'
