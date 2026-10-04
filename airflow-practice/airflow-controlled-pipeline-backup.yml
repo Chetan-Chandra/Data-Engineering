@@ -1,0 +1,468 @@
+trigger:
+  branches:
+    include:
+      - main
+     # - none
+
+pr:
+  branches:
+    include:
+      - "*"
+
+variables:
+- name: python_version
+  value: '3.10'
+- name: REGISTRY_URL_TEST
+  value: 'northamerica-northeast1-docker.pkg.dev'
+- name: IMAGE_PATH_TEST
+  value: 'electric-tesla-507710-k2/airflow/custom-airflow'
+
+stages:
+- stage: unit_tests
+  displayName: 'PR Unit Tests'
+  jobs:
+  - job: manual_container_test
+    displayName: 'Run Tests in Docker'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - checkout: self
+
+    # 1. Download the GCP Key for Login
+    - task: DownloadSecureFile@1
+      name: test_key
+      inputs:
+        secureFile: 'practice-gcp-service-account.json'
+
+    # 2. Authenticate and Pull the image    
+    - script: |
+        cat $(test_key.secureFilePath) | docker login -u _json_key --password-stdin https://$(REGISTRY_URL_TEST)
+        docker pull $(REGISTRY_URL_TEST)/$(IMAGE_PATH_TEST):latest
+      displayName: 'Docker Login and Pull'
+
+    # 3. Run the container with your PR code mounted
+    - script: |
+        docker run --rm \
+          -v $(Build.SourcesDirectory)/airflow-practice:/workspace \
+          -w /workspace \
+          -e PYTHONPATH=/workspace:/workspace/plugins \
+          -e PYTEST_ADDOPTS="-p no:cacheprovider" \
+          $(REGISTRY_URL_TEST)/$(IMAGE_PATH_TEST):latest \
+          bash -c "pip install -r requirements.txt -q && pytest Tests/ -v"
+      displayName: 'Run Pytest inside pulled image'
+
+  # --- TEST STAGE ---
+- stage: deploy_test
+  displayName: 'Deploy Airflow DAG and Plugins to TEST Environment'
+  dependsOn: unit_tests
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: sync_to_test
+    displayName: 'Deploy Changed Files to TEST'
+    environment: 'TEST - Airflow DAGS'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+            fetchDepth: 0
+
+############ 1. Detect changed files ############  for  controlled deployment   ##############################
+          - script: |
+              echo "Changed files:"
+              git diff --name-status HEAD~1 HEAD
+
+              echo ""
+              echo "Changed DAGS:"
+              git diff --name-only HEAD~1 HEAD | grep '^airflow-practice/DAGS/' || true
+
+              echo ""
+              echo "Changed DAG relative paths:"
+              git diff --name-only HEAD~1 HEAD \
+                | grep '^airflow-practice/DAGS/' \
+                | sed 's#^airflow-practice/DAGS/##' || true
+
+              echo ""
+              echo "Changed plugins:"
+              git diff --name-only HEAD~1 HEAD | grep '^airflow-practice/plugins/' || true
+
+              echo ""
+              echo "Other changed files:"
+              git diff --name-only HEAD~1 HEAD | grep -vE '^airflow-practice/(DAGS|plugins)/' || true
+
+            displayName: 'Detect and Classify Changed Files'
+############################################################################################################
+
+          - task: DownloadSecureFile@1
+            name: google_application_credentials
+            inputs:
+              secureFile: 'practice-gcp-service-account.json'
+            displayName: 'Download GCP Json Key'
+
+          - script: |
+              chmod 600 $(google_application_credentials.secureFilePath)
+              echo "##vso[task.setvariable variable=GOOGLE_APPLICATION_CREDENTIALS]$(google_application_credentials.secureFilePath)"
+            displayName: 'Set Secret Variables'
+
+          - script: |
+              echo "Installing Google Cloud SDK..."
+              curl -sSL https://sdk.cloud.google.com | bash
+              gcloud auth activate-service-account --key-file=$(google_application_credentials.secureFilePath)
+            displayName: 'Install gcloud SDK and authenticate'
+
+          - script: |
+              echo "Processing changed DAG files..."
+
+              git diff --name-status -M HEAD~1 HEAD \
+                | while read -r status old_path new_path
+              do
+                if [[ "$status" == R* ]]; then
+                  if [[ "$old_path" != airflow-practice/DAGS/* ]] || [[ "$new_path" != airflow-practice/DAGS/* ]]; then
+                    continue
+                  fi
+
+                  old_relative_path="${old_path#airflow-practice/DAGS/}"
+                  new_relative_path="${new_path#airflow-practice/DAGS/}"
+
+                  echo "Status: $status"
+                  echo "Old DAG: $old_relative_path"
+                  echo "New DAG: $new_relative_path"
+
+                  echo "Checking old DAG in TEST GCS: $old_relative_path"
+
+                  if gcloud storage ls \
+                    "gs://advworks-airflow-test/dags/$old_relative_path" \
+                    >/dev/null 2>&1
+                  then
+                    echo "Old DAG exists in TEST. Deleting: $old_relative_path"
+
+                    gcloud storage rm \
+                      "gs://advworks-airflow-test/dags/$old_relative_path"
+                  else
+                    echo "Old DAG is already absent from TEST: $old_relative_path"
+                  fi
+
+                  echo "Copying renamed DAG to Test GCS: $new_relative_path"
+
+                  gcloud storage cp \
+                    "$(Build.SourcesDirectory)/airflow-practice/DAGS/$new_relative_path" \
+                    "gs://advworks-airflow-test/dags/$new_relative_path"
+
+                elif [[ "$status" == "D" || "$status" == "A" || "$status" == "M" ]]; then
+                  file="$old_path"
+
+                  if [[ "$file" != airflow-practice/DAGS/* ]]; then
+                    continue
+                  fi
+
+                  relative_path="${file#airflow-practice/DAGS/}"
+
+                  echo "Status: $status"
+                  echo "DAG: $relative_path"
+
+                  if [ "$status" = "D" ]; then
+                    echo "Checking DAG in TEST GCS: $relative_path"
+
+                    if gcloud storage ls \
+                      "gs://advworks-airflow-test/dags/$relative_path" \
+                      >/dev/null 2>&1
+                    then
+                      echo "DAG exists in TEST. Deleting: $relative_path"
+
+                      gcloud storage rm \
+                        "gs://advworks-airflow-test/dags/$relative_path"
+                    else
+                      echo "DAG is already absent from TEST: $relative_path"
+                    fi
+
+                  elif [ "$status" = "A" ] || [ "$status" = "M" ]; then
+                    echo "Copying to Test GCS: $relative_path"
+
+                    gcloud storage cp \
+                      "$(Build.SourcesDirectory)/airflow-practice/DAGS/$relative_path" \
+                      "gs://advworks-airflow-test/dags/$relative_path"
+                  fi
+                fi
+              done
+            displayName: 'Deploy Changed DAG Files to Google Cloud Storage'
+
+          - script: |
+              echo "Processing changed plugin files..."
+
+              git diff --name-status -M HEAD~1 HEAD \
+                | while read -r status old_path new_path
+              do
+                if [[ "$status" == R* ]]; then
+                  if [[ "$old_path" != airflow-practice/plugins/* ]] || [[ "$new_path" != airflow-practice/plugins/* ]]; then
+                    continue
+                  fi
+
+                  old_relative_path="${old_path#airflow-practice/plugins/}"
+                  new_relative_path="${new_path#airflow-practice/plugins/}"
+
+                  echo "Status: $status"
+                  echo "Old Plugin: $old_relative_path"
+                  echo "New Plugin: $new_relative_path"
+
+                  echo "Checking old plugin in TEST GCS: $old_relative_path"
+
+                  if gcloud storage ls \
+                    "gs://advworks-airflow-test/plugins/$old_relative_path" \
+                    >/dev/null 2>&1
+                  then
+                    echo "Old plugin exists in TEST. Deleting: $old_relative_path"
+
+                    gcloud storage rm \
+                      "gs://advworks-airflow-test/plugins/$old_relative_path"
+                  else
+                    echo "Old plugin is already absent from TEST: $old_relative_path"
+                  fi
+
+                  echo "Copying renamed plugin to Test GCS: $new_relative_path"
+
+                  gcloud storage cp \
+                    "$(Build.SourcesDirectory)/airflow-practice/plugins/$new_relative_path" \
+                    "gs://advworks-airflow-test/plugins/$new_relative_path"
+
+                elif [[ "$status" == "D" || "$status" == "A" || "$status" == "M" ]]; then
+                  file="$old_path"
+
+                  if [[ "$file" != airflow-practice/plugins/* ]]; then
+                    continue
+                  fi
+
+                  relative_path="${file#airflow-practice/plugins/}"
+
+                  echo "Status: $status"
+                  echo "Plugin: $relative_path"
+
+                  if [ "$status" = "D" ]; then
+                    echo "Checking plugin in TEST GCS: $relative_path"
+
+                    if gcloud storage ls \
+                      "gs://advworks-airflow-test/plugins/$relative_path" \
+                      >/dev/null 2>&1
+                    then
+                      echo "Plugin exists in TEST. Deleting: $relative_path"
+
+                      gcloud storage rm \
+                        "gs://advworks-airflow-test/plugins/$relative_path"
+                    else
+                      echo "Plugin is already absent from TEST: $relative_path"
+                    fi
+
+                  elif [ "$status" = "A" ] || [ "$status" = "M" ]; then
+                    echo "Copying to GCS: $relative_path"
+
+                    gcloud storage cp \
+                      "$(Build.SourcesDirectory)/airflow-practice/plugins/$relative_path" \
+                      "gs://advworks-airflow-test/plugins/$relative_path"
+                  fi
+                fi
+              done
+            displayName: 'Deploy Changed Plugin Files to Test Google Cloud Storage'
+
+  # --- PRODUCTION STAGE ---
+- stage: deploy_prod
+  displayName: 'Deploy Airflow DAG and Plugins to PROD Environment'
+  dependsOn: deploy_test
+  # Only run if we are on the main branch and the test stage succeeded
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: sync_to_prod
+    displayName: 'Deploy Changed Files to PROD'
+    environment: 'PROD - Airflow DAGS'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+            fetchDepth: 0
+
+############ 1. Detect changed files ############  for  controlled deployment   ##############################
+          - script: |
+              echo "Changed files:"
+              git diff --name-status HEAD~1 HEAD
+
+              echo ""
+              echo "Changed DAGS:"
+              git diff --name-only HEAD~1 HEAD | grep '^airflow-practice/DAGS/' || true
+
+              echo ""
+              echo "Changed DAG relative paths:"
+              git diff --name-only HEAD~1 HEAD \
+                | grep '^airflow-practice/DAGS/' \
+                | sed 's#^airflow-practice/DAGS/##' || true
+
+              echo ""
+              echo "Changed plugins:"
+              git diff --name-only HEAD~1 HEAD | grep '^airflow-practice/plugins/' || true
+
+              echo ""
+              echo "Other changed files:"
+              git diff --name-only HEAD~1 HEAD | grep -vE '^airflow-practice/(DAGS|plugins)/' || true
+
+            displayName: 'Detect and Classify Changed Files'
+############################################################################################################          
+
+          - task: DownloadSecureFile@1
+            name: google_application_credentials
+            inputs:
+              secureFile: 'practice-gcp-service-account.json'
+            displayName: 'Download GCP Json Key'
+
+          - script: |
+              gcloud auth activate-service-account --key-file=$(google_application_credentials.secureFilePath)
+            displayName: 'Authenticate with GCP'
+
+          - script: |
+              echo "Processing changed DAG files..."
+
+              git diff --name-status -M HEAD~1 HEAD \
+                | while read -r status old_path new_path
+              do
+                if [[ "$status" == R* ]]; then
+                  if [[ "$old_path" != airflow-practice/DAGS/* ]] || [[ "$new_path" != airflow-practice/DAGS/* ]]; then
+                    continue
+                  fi
+
+                  old_relative_path="${old_path#airflow-practice/DAGS/}"
+                  new_relative_path="${new_path#airflow-practice/DAGS/}"
+
+                  echo "Status: $status"
+                  echo "Old DAG: $old_relative_path"
+                  echo "New DAG: $new_relative_path"
+
+                  echo "Checking old DAG in PROD GCS: $old_relative_path"
+
+                  if gcloud storage ls \
+                    "gs://advworks-airflow-prod/dags/$old_relative_path" \
+                    >/dev/null 2>&1
+                  then
+                    echo "Old DAG exists in PROD. Deleting: $old_relative_path"
+
+                    gcloud storage rm \
+                      "gs://advworks-airflow-prod/dags/$old_relative_path"
+                  else
+                    echo "Old DAG is already absent from PROD: $old_relative_path"
+                  fi
+
+                  echo "Copying renamed DAG to PROD GCS: $new_relative_path"
+
+                  gcloud storage cp \
+                    "$(Build.SourcesDirectory)/airflow-practice/DAGS/$new_relative_path" \
+                    "gs://advworks-airflow-prod/dags/$new_relative_path"
+
+                elif [[ "$status" == "D" || "$status" == "A" || "$status" == "M" ]]; then
+                  file="$old_path"
+
+                  if [[ "$file" != airflow-practice/DAGS/* ]]; then
+                    continue
+                  fi
+
+                  relative_path="${file#airflow-practice/DAGS/}"
+
+                  echo "Status: $status"
+                  echo "DAG: $relative_path"
+
+                  if [ "$status" = "D" ]; then
+                    echo "Checking DAG in PROD GCS: $relative_path"
+
+                    if gcloud storage ls \
+                      "gs://advworks-airflow-prod/dags/$relative_path" \
+                      >/dev/null 2>&1
+                    then
+                      echo "DAG exists in PROD. Deleting: $relative_path"
+
+                      gcloud storage rm \
+                        "gs://advworks-airflow-prod/dags/$relative_path"
+                    else
+                      echo "DAG is already absent from PROD: $relative_path"
+                    fi
+
+                  elif [ "$status" = "A" ] || [ "$status" = "M" ]; then
+                    echo "Copying to PROD GCS: $relative_path"
+
+                    gcloud storage cp \
+                      "$(Build.SourcesDirectory)/airflow-practice/DAGS/$relative_path" \
+                      "gs://advworks-airflow-prod/dags/$relative_path"
+                  fi
+                fi
+              done
+            displayName: 'Deploy Changed DAG Files to PROD Google Cloud Storage'
+
+          - script: |
+              echo "Processing changed plugin files..."
+
+              git diff --name-status -M HEAD~1 HEAD \
+                | while read -r status old_path new_path
+              do
+                if [[ "$status" == R* ]]; then
+                  if [[ "$old_path" != airflow-practice/plugins/* ]] || [[ "$new_path" != airflow-practice/plugins/* ]]; then
+                    continue
+                  fi
+
+                  old_relative_path="${old_path#airflow-practice/plugins/}"
+                  new_relative_path="${new_path#airflow-practice/plugins/}"
+
+                  echo "Status: $status"
+                  echo "Old Plugin: $old_relative_path"
+                  echo "New Plugin: $new_relative_path"
+
+                  echo "Checking old plugin in PROD GCS: $old_relative_path"
+
+                  if gcloud storage ls \
+                    "gs://advworks-airflow-prod/plugins/$old_relative_path" \
+                    >/dev/null 2>&1
+                  then
+                    echo "Old plugin exists in PROD. Deleting: $old_relative_path"
+
+                    gcloud storage rm \
+                      "gs://advworks-airflow-prod/plugins/$old_relative_path"
+                  else
+                    echo "Old plugin is already absent from PROD: $old_relative_path"
+                  fi
+
+                  echo "Copying renamed plugin to PROD GCS: $new_relative_path"
+
+                  gcloud storage cp \
+                    "$(Build.SourcesDirectory)/airflow-practice/plugins/$new_relative_path" \
+                    "gs://advworks-airflow-prod/plugins/$new_relative_path"
+
+                elif [[ "$status" == "D" || "$status" == "A" || "$status" == "M" ]]; then
+                  file="$old_path"
+
+                  if [[ "$file" != airflow-practice/plugins/* ]]; then
+                    continue
+                  fi
+
+                  relative_path="${file#airflow-practice/plugins/}"
+
+                  echo "Status: $status"
+                  echo "Plugin: $relative_path"
+
+                  if [ "$status" = "D" ]; then
+                    echo "Checking plugin in PROD GCS: $relative_path"
+
+                    if gcloud storage ls \
+                      "gs://advworks-airflow-prod/plugins/$relative_path" \
+                      >/dev/null 2>&1
+                    then
+                      echo "Plugin exists in PROD. Deleting: $relative_path"
+
+                      gcloud storage rm \
+                        "gs://advworks-airflow-prod/plugins/$relative_path"
+                    else
+                      echo "Plugin is already absent from PROD: $relative_path"
+                    fi
+
+                  elif [ "$status" = "A" ] || [ "$status" = "M" ]; then
+                    echo "Copying to PROD GCS: $relative_path"
+
+                    gcloud storage cp \
+                      "$(Build.SourcesDirectory)/airflow-practice/plugins/$relative_path" \
+                      "gs://advworks-airflow-prod/plugins/$relative_path"
+                  fi
+                fi
+              done
+            displayName: 'Deploy Changed Plugin Files to PROD Google Cloud Storage'
