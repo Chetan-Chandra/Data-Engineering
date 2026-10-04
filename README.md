@@ -30,7 +30,6 @@ The platform also implements **Infrastructure as Code, environment isolation, CI
 | Source Control      | Git / GitHub                      |
 | BI                  | Tableau / Power BI                |
 
-**Project status: ✅ Core implementation completed and validated**
 
 ---
 
@@ -341,7 +340,7 @@ dbo.FactInternetSales
 Source configuration used during development:
 
 ```text
-Server: CHETAN\SQLSERVER2022
+Server: CHETAN/SQLSERVER2022
 Database: AdventureWorksDW2022
 Driver: ODBC Driver 17 for SQL Server
 Authentication: Windows Authentication
@@ -2352,14 +2351,12 @@ These are intentionally identified as production extensions rather than being re
 
 # 39. Portfolio Evidence
 
-The repository contains the implementation code together with the images.
+The repository contains the implementation code together with the supporting images.
 
-
-
-Recommended final gallery:
+Visual Implementation:
 
 ```text
-01-final-architecture.png
+01-final-architecture
 ```
 
 ![Final Architechture](Images/End-to-End%20Data%20Platform%20Architecture.png)
@@ -2368,88 +2365,88 @@ Recommended final gallery:
 02-airflow-success
 ```
 
-![Airflow DAG](Images/image-17.png)
+![Airflow DAG](Images/airflow-dag.png)
 
-![Airflow Connections](Images/image-20.png)
+![Airflow Connections](Images/airflow-connections.png)
 
-![Airflow Graph](Images/image-18.png)
+![Airflow Graph](Images/airflow-dag-graph.png)
 
-![Airflow Log](Images/image-19.png)
+![Airflow Log](Images/airflow-dag-log.png)
 
-![Airflow Xcom](Images/image-21.png)
+![Airflow Xcom](Images/airflow-xcoms.png)
 
 ```
 03-gcs-raw-ingestion.png
 ```
 
-![alt text](Images\gcs-bucket.png)
+![GCS-Bucket](Images/gcs-bucket.png)
 
 ```
 04-pubsub-event.png
 ```
 
-![alt text](Images\pubsub-subs.png)
+![pubsub-subs](Images/pubsub-subs.png)
 
-![alt text](Images\pubsub-topic.png)
+![pubsub-topic](Images/pubsub-topic.png)
 
-![alt text](Images\pubsub-health.png)
+![pubsub-health](Images/pubsub-health.png)
 
 ```
 05-snowpipe-success.png
 ```
 
-![alt text](Images\terraform-snowpipe-success.png)
+![alt text](Images/terraform-snowpipe-success.png)
 
 ```
 06-snowflake-layers.png
 ```
 
-![alt text](Images\snowflake-layers.png)
+![alt text](Images/snowflake-layers.png)
 
 ```
 07-dbt-lineage.png
 ```
-![alt text](Images\snowflake-dataproduct-lineage-landing-dp.png)
+![alt text](Images/snowflake-dataproduct-lineage-landing-dp.png)
 
 
 ```
 08-dbt-dataproduct.png
 ```
 
-![alt text](Images\snowflake-dataproduct-preview.png)
+![alt text](Images/snowflake-dataproduct-preview.png)
 
 ```
 09-scd2-snapshot.png
 ```
 
-![alt text](Images\snowflake-snapshot.png)
+![alt text](Images/snowflake-snapshot.png)
 
 ```
 10-snowflake-cdc.png
 ```
-![alt text](Images\snowflake-scd2.png)
+![alt text](Images/snowflake-scd2.png)
 
 ```
 11-azure-devops-pipeline.png
 ```
 
-![alt text](Images\azure-all-pipelines.png)
+![alt text](Images/azure-all-pipelines.png)
 
-![alt text](Images\azure-jobs-status.png)
+![alt text](Images/azure-jobs-status.png)
 
-![alt text](Images\azure-environments.png)
+![alt text](Images/azure-environments.png)
 
-![alt text](Images\azure-secure-files.png)
+![alt text](Images/azure-secure-files.png)
 
-![alt text](Images\azure-variable-groups.png)
+![alt text](Images/azure-variable-groups.png)
 
-![alt text](Images\azure-variables-key-value.png)
+![alt text](Images/azure-variables-key-value.png)
 
 
 ```
 12-repository-structure.png
 ```
-![alt text](Images\azure-repo.png)
+![alt text](Images/azure-repo.png)
 
 
 
