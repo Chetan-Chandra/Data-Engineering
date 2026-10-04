@@ -2362,10 +2362,11 @@ Recommended final gallery:
 01-final-architecture.png
 ```
 
+![Final Architechture](Images/End-to-End%20Data%20Platform%20Architecture.png)
+
 ```
 02-airflow-success
 ```
-Images\image-17.png
 
 ![Airflow DAG](Images/image-17.png)
 
@@ -2377,67 +2378,89 @@ Images\image-17.png
 
 ![Airflow Xcom](Images/image-21.png)
 
+```
 03-gcs-raw-ingestion.png
+```
+
+![alt text](Images\gcs-bucket.png)
+
+```
 04-pubsub-event.png
+```
+
+![alt text](Images\pubsub-subs.png)
+
+![alt text](Images\pubsub-topic.png)
+
+![alt text](Images\pubsub-health.png)
+
+```
 05-snowpipe-success.png
+```
+
+![alt text](Images\terraform-snowpipe-success.png)
+
+```
 06-snowflake-layers.png
+```
+
+![alt text](Images\snowflake-layers.png)
+
+```
 07-dbt-lineage.png
-08-dbt-tests.png
+```
+![alt text](Images\snowflake-dataproduct-lineage-landing-dp.png)
+
+
+```
+08-dbt-dataproduct.png
+```
+
+![alt text](Images\snowflake-dataproduct-preview.png)
+
+```
 09-scd2-snapshot.png
+```
+
+![alt text](Images\snowflake-snapshot.png)
+
+```
 10-snowflake-cdc.png
-11-terraform-plan.png
-12-azure-devops-pipeline.png
-13-wif.png
-14-repository-structure.png
+```
+![alt text](Images\snowflake-scd2.png)
+
+```
+11-azure-devops-pipeline.png
 ```
 
-This gives a reviewer a visual path through the project:
+![alt text](Images\azure-all-pipelines.png)
 
-```text
-Architecture
-    ↓
-Extraction
-    ↓
-Orchestration
-    ↓
-Storage
-    ↓
-Eventing
-    ↓
-Automated ingestion
-    ↓
-Warehouse
-    ↓
-Transformation
-    ↓
-Data quality
-    ↓
-Historical tracking
-    ↓
-CDC
-    ↓
-Infrastructure
-    ↓
-CI/CD
-    ↓
-Security
+![alt text](Images\azure-jobs-status.png)
+
+![alt text](Images\azure-environments.png)
+
+![alt text](Images\azure-secure-files.png)
+
+![alt text](Images\azure-variable-groups.png)
+
+![alt text](Images\azure-variables-key-value.png)
+
+
 ```
+12-repository-structure.png
+```
+![alt text](Images\azure-repo.png)
 
----
+
 
 # 40. Repository
 
 GitHub:
 
 ```text
-Chetanchandra1994/Data-pipeline-end-to-end
+Chetan-Chandra/Data-Enginnering
 ```
 
-Main branch:
-
-```text
-main
-```
 
 ---
 
