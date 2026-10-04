@@ -2356,13 +2356,13 @@ The repository contains the implementation code together with the supporting ima
 Visual Implementation:
 
 ```text
-01-final-architecture
+Final Architecture
 ```
 
 ![Final Architechture](Images/End-to-End%20Data%20Platform%20Architecture.png)
 
 ```
-02-airflow-success
+Airflow
 ```
 
 ![Airflow DAG](Images/airflow-dag.png)
@@ -2376,13 +2376,13 @@ Visual Implementation:
 ![Airflow Xcom](Images/airflow-xcoms.png)
 
 ```
-03-gcs-raw-ingestion.png
+GCS Bucket
 ```
 
 ![GCS-Bucket](Images/gcs-bucket.png)
 
 ```
-04-pubsub-event.png
+PUB/SUB
 ```
 
 ![pubsub-subs](Images/pubsub-subs.png)
@@ -2392,42 +2392,42 @@ Visual Implementation:
 ![pubsub-health](Images/pubsub-health.png)
 
 ```
-05-snowpipe-success.png
+Snowpipe
 ```
 
 ![alt text](Images/terraform-snowpipe-success.png)
 
 ```
-06-snowflake-layers.png
+Snowflake Layers
 ```
 
 ![alt text](Images/snowflake-layers.png)
 
 ```
-07-dbt-lineage.png
+DBT Data Lineage
 ```
 ![alt text](Images/snowflake-dataproduct-lineage-landing-dp.png)
 
 
 ```
-08-dbt-dataproduct.png
+Final DataProduct
 ```
 
 ![alt text](Images/snowflake-dataproduct-preview.png)
 
 ```
-09-scd2-snapshot.png
+DBT Snapshot
 ```
 
 ![alt text](Images/snowflake-snapshot.png)
 
 ```
-10-snowflake-cdc.png
+SCD2
 ```
 ![alt text](Images/snowflake-scd2.png)
 
 ```
-11-azure-devops-pipeline.png
+Azure Devops
 ```
 
 ![alt text](Images/azure-all-pipelines.png)
@@ -2444,7 +2444,7 @@ Visual Implementation:
 
 
 ```
-12-repository-structure.png
+Repository structure
 ```
 ![alt text](Images/azure-repo.png)
 
