@@ -1,34 +1,44 @@
-import pyodbc
 import json
 import base64
 from decimal import Decimal
 from datetime import date, datetime
 from pathlib import Path
 
-from google.cloud import storage
+from airflow.providers.microsoft.mssql.hooks.mssql import MsSqlHook
+from airflow.providers.google.cloud.hooks.gcs import GCSHook
 
 
 # ============================================================
-# CONFIGURATION
+# AIRFLOW CONNECTIONS
 # ============================================================
 
-# SQL_SERVER = r"CHETAN\SQLSERVER2022"
-# DATABASE = "AdventureWorksDW2022"
+SQLSERVER_CONN_ID = "advworks_sqlserver"
+GCP_CONN_ID = "advworks_gcp"
+
+
+# ============================================================
+# PIPELINE CONFIGURATION
+# ============================================================
 
 BATCH_SIZE = 1000
 
-# GCS_BUCKET_NAME = "advworks-dev-ingestion"
+GCS_BUCKET_NAME = "advworks-dev-ingestion"
 
 WATERMARK_TABLE = "dbo.ETL_Watermark"
 
 RUN_ID = datetime.now().strftime("%Y%m%d_%H%M%S")
 
+
 INCREMENTAL_TABLES = {
+
     "DimCustomer": {
+
         "pipeline_name": "DIM_CUSTOMER_INCREMENTAL",
+
         "watermark_column": "CustomerKey"
     }
 }
+
 
 # ============================================================
 # TABLE CONFIGURATION
@@ -73,85 +83,46 @@ TABLES = {
 
 
 # ============================================================
-# JSON SERIALIZER
+# SQL SERVER HOOK
 # ============================================================
 
-def json_serializer(value):
-
-    if isinstance(value, (datetime, date)):
-        return value.isoformat()
-
-    if isinstance(value, Decimal):
-        return float(value)
-
-    if isinstance(value, bytes):
-        return base64.b64encode(value).decode("utf-8")
-
-    raise TypeError(
-        f"Type {type(value)} is not JSON serializable"
-    )
-
-
-# ============================================================
-# SQL SERVER CONNECTION
-# ============================================================
-
-def create_connection():
-    import os
-
-    airflow_runtime = os.getenv("AIRFLOW_RUNTIME", "false").lower() == "true"
-
-    if airflow_runtime:
-        airflow_sql_password = os.getenv("AIRFLOW_SQL_PASSWORD")
-
-        if not airflow_sql_password:
-            raise RuntimeError(
-                "AIRFLOW_SQL_PASSWORD is required when AIRFLOW_RUNTIME=true."
-            )
-
-        connection_string = (
-            "DRIVER={ODBC Driver 18 for SQL Server};"
-            "SERVER=host.docker.internal,50791;"
-            f"DATABASE={DATABASE};"
-            "UID=airflow_ingestion;"
-            f"PWD={airflow_sql_password};"
-            "TrustServerCertificate=yes;"
-            "Encrypt=no;"
-        )
-    else:
-        connection_string = (
-            "DRIVER={ODBC Driver 17 for SQL Server};"
-            f"SERVER={SQL_SERVER};"
-            f"DATABASE={DATABASE};"
-            "Trusted_Connection=yes;"
-            "TrustServerCertificate=yes;"
-        )
-
-    return pyodbc.connect(connection_string)
-
-
-# ============================================================
-# GCS CLIENT
-# ============================================================
-
-def create_gcs_client():
-
-    client = storage.Client()
+def create_sqlserver_hook():
 
     print(
-        "Connected to Google Cloud Storage successfully!"
+        f"Creating SQL Server hook using Airflow connection: "
+        f"{SQLSERVER_CONN_ID}"
     )
 
-    return client
+    return MsSqlHook(
+        mssql_conn_id=SQLSERVER_CONN_ID
+    )
+
+
+# ============================================================
+# GCS HOOK
+# ============================================================
+
+def create_gcs_hook():
+
+    print(
+        f"Creating GCS hook using Airflow connection: "
+        f"{GCP_CONN_ID}"
+    )
+
+    return GCSHook(
+        gcp_conn_id=GCP_CONN_ID
+    )
 
 
 # ============================================================
 # VALIDATE GCS BUCKET
 # ============================================================
 
-def validate_gcs_bucket(client):
+def validate_gcs_bucket(
+    gcs_hook
+):
 
-    bucket = client.bucket(
+    bucket = gcs_hook.get_conn().bucket(
         GCS_BUCKET_NAME
     )
 
@@ -167,7 +138,32 @@ def validate_gcs_bucket(client):
         f"gs://{GCS_BUCKET_NAME}"
     )
 
-    return bucket
+    return GCS_BUCKET_NAME
+
+
+# ============================================================
+# JSON SERIALIZER
+# ============================================================
+
+def json_serializer(value):
+
+    if isinstance(value, (datetime, date)):
+
+        return value.isoformat()
+
+    if isinstance(value, Decimal):
+
+        return float(value)
+
+    if isinstance(value, bytes):
+
+        return base64.b64encode(
+            value
+        ).decode("utf-8")
+
+    raise TypeError(
+        f"Type {type(value)} is not JSON serializable"
+    )
 
 
 # ============================================================
@@ -194,6 +190,7 @@ def get_source_count(
 
     return count
 
+
 # ============================================================
 # WATERMARK
 # ============================================================
@@ -207,16 +204,15 @@ def get_watermark(
     query = f"""
         SELECT WATERMARK_VALUE
         FROM {WATERMARK_TABLE}
-        WHERE PIPELINE_NAME = ?
-          AND SOURCE_OBJECT = ?
+        WHERE PIPELINE_NAME = %s
+          AND SOURCE_OBJECT = %s
     """
 
     cursor = connection.cursor()
 
     cursor.execute(
         query,
-        pipeline_name,
-        source_table
+        (pipeline_name, source_table)
     )
 
     row = cursor.fetchone()
@@ -224,6 +220,7 @@ def get_watermark(
     cursor.close()
 
     if row is None:
+
         raise RuntimeError(
             f"No watermark found for "
             f"{pipeline_name} / {source_table}"
@@ -231,6 +228,10 @@ def get_watermark(
 
     return int(row[0])
 
+
+# ============================================================
+# UPDATE WATERMARK
+# ============================================================
 
 def update_watermark(
     connection,
@@ -242,19 +243,21 @@ def update_watermark(
     query = f"""
         UPDATE {WATERMARK_TABLE}
         SET
-            WATERMARK_VALUE = ?,
+            WATERMARK_VALUE = %s,
             UPDATED_AT = SYSDATETIME()
-        WHERE PIPELINE_NAME = ?
-          AND SOURCE_OBJECT = ?
+        WHERE PIPELINE_NAME = %s
+          AND SOURCE_OBJECT = %s
     """
 
     cursor = connection.cursor()
 
     cursor.execute(
         query,
-        str(new_watermark),
-        pipeline_name,
-        source_table
+        (
+            str(new_watermark),
+            pipeline_name,
+            source_table
+        )
     )
 
     if cursor.rowcount != 1:
@@ -275,6 +278,7 @@ def update_watermark(
         f"{new_watermark}"
     )
 
+
 # ============================================================
 # GET SOURCE COLUMNS
 # ============================================================
@@ -291,8 +295,8 @@ def get_columns(
     query = """
         SELECT COLUMN_NAME
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = ?
-          AND TABLE_NAME = ?
+        WHERE TABLE_SCHEMA = %s
+          AND TABLE_NAME = %s
         ORDER BY ORDINAL_POSITION
     """
 
@@ -300,8 +304,7 @@ def get_columns(
 
     cursor.execute(
         query,
-        schema_name,
-        table_name
+        (schema_name, table_name)
     )
 
     columns = [
@@ -341,7 +344,7 @@ def validate_order_columns(
 
 
 # ============================================================
-# EXTRACT BATCH
+# EXTRACT FULL LOAD BATCH
 # ============================================================
 
 def extract_batch(
@@ -364,23 +367,18 @@ def extract_batch(
     )
 
     query = f"""
-        SELECT {column_list}
-
-        FROM {source_table}
-
-        ORDER BY {order_by}
-
-        OFFSET ? ROWS
-
-        FETCH NEXT ? ROWS ONLY
+    SELECT {column_list}
+    FROM {source_table}
+    ORDER BY {order_by}
+    OFFSET %s ROWS
+    FETCH NEXT %s ROWS ONLY
     """
 
     cursor = connection.cursor()
 
     cursor.execute(
         query,
-        offset,
-        batch_size
+        (offset, batch_size)
     )
 
     rows = cursor.fetchall()
@@ -398,6 +396,7 @@ def extract_batch(
         records.append(record)
 
     return records
+
 
 # ============================================================
 # EXTRACT INCREMENTAL BATCH
@@ -418,22 +417,18 @@ def extract_incremental_batch(
     )
 
     query = f"""
-        SELECT TOP (?)
-            {column_list}
-
-        FROM {source_table}
-
-        WHERE [{watermark_column}] > ?
-
-        ORDER BY [{watermark_column}]
+    SELECT TOP (%s)
+        {column_list}
+    FROM {source_table}
+    WHERE [{watermark_column}] > %s
+    ORDER BY [{watermark_column}]
     """
 
     cursor = connection.cursor()
 
     cursor.execute(
         query,
-        batch_size,
-        last_key
+        (batch_size, last_key)
     )
 
     rows = cursor.fetchall()
@@ -451,6 +446,7 @@ def extract_incremental_batch(
         records.append(record)
 
     return records
+
 
 # ============================================================
 # CONVERT RECORDS TO JSONL
@@ -497,7 +493,8 @@ def write_local_jsonl(
 # ============================================================
 
 def upload_to_gcs(
-    bucket,
+    gcs_hook,
+    bucket_name,
     records,
     gcs_folder,
     filename
@@ -508,22 +505,20 @@ def upload_to_gcs(
         f"{filename}"
     )
 
-    blob = bucket.blob(
-        blob_name
-    )
-
     jsonl_data = records_to_jsonl(
         records
     )
 
-    blob.upload_from_string(
-        jsonl_data,
-        content_type="application/json"
+    gcs_hook.upload(
+        bucket_name=bucket_name,
+        object_name=blob_name,
+        data=jsonl_data,
+        mime_type="application/json"
     )
 
     print(
         f"Uploaded to GCS: "
-        f"gs://{GCS_BUCKET_NAME}/"
+        f"gs://{bucket_name}/"
         f"{blob_name}"
     )
 
@@ -536,7 +531,8 @@ def upload_to_gcs(
 
 def ingest_table(
     connection,
-    bucket,
+    gcs_hook,
+    bucket_name,
     table_name,
     config
 ):
@@ -548,29 +544,15 @@ def ingest_table(
     )
     print("=" * 70)
 
-    source_table = config[
-        "source_table"
-    ]
+    source_table = config["source_table"]
 
-    gcs_folder = config[
-        "gcs_folder"
-    ]
+    gcs_folder = config["gcs_folder"]
 
-    local_folder = config[
-        "local_folder"
-    ]
+    local_folder = config["local_folder"]
 
-    file_prefix = config[
-        "file_prefix"
-    ]
+    file_prefix = config["file_prefix"]
 
-    order_by_columns = config[
-        "order_by"
-    ]
-
-    # --------------------------------------------------------
-    # SOURCE COUNT
-    # --------------------------------------------------------
+    order_by_columns = config["order_by"]
 
     source_count = get_source_count(
         connection,
@@ -586,10 +568,6 @@ def ingest_table(
         f"{source_count}"
     )
 
-    # --------------------------------------------------------
-    # COLUMNS
-    # --------------------------------------------------------
-
     columns = get_columns(
         connection,
         source_table
@@ -599,16 +577,6 @@ def ingest_table(
         f"Source columns discovered: "
         f"{len(columns)}"
     )
-
-    for column in columns:
-
-        print(
-            f"  - {column}"
-        )
-
-    # --------------------------------------------------------
-    # VALIDATE ORDER
-    # --------------------------------------------------------
 
     validate_order_columns(
         columns,
@@ -620,18 +588,10 @@ def ingest_table(
         + ", ".join(order_by_columns)
     )
 
-    # --------------------------------------------------------
-    # LOCAL FOLDER
-    # --------------------------------------------------------
-
     local_folder.mkdir(
         parents=True,
         exist_ok=True
     )
-
-    # --------------------------------------------------------
-    # BATCH PROCESSING
-    # --------------------------------------------------------
 
     extracted_count = 0
 
@@ -651,17 +611,12 @@ def ingest_table(
         )
 
         if not records:
-
             break
 
         filename = (
             f"{file_prefix}_"
             f"{batch_number:03d}.jsonl"
         )
-
-        # ----------------------------------------------------
-        # LOCAL COPY
-        # ----------------------------------------------------
 
         output_file = (
             local_folder /
@@ -673,38 +628,26 @@ def ingest_table(
             output_file
         )
 
-        # ----------------------------------------------------
-        # GCS UPLOAD
-        # ----------------------------------------------------
-
         upload_to_gcs(
-            bucket,
+            gcs_hook,
+            bucket_name,
             records,
             gcs_folder,
             filename
         )
-
-        # ----------------------------------------------------
-        # VALIDATION
-        # ----------------------------------------------------
 
         record_count = len(records)
 
         extracted_count += record_count
 
         print(
-            f"Batch "
-            f"{batch_number:03d}: "
+            f"Batch {batch_number:03d}: "
             f"{record_count} records"
         )
 
         offset += BATCH_SIZE
 
         batch_number += 1
-
-    # --------------------------------------------------------
-    # FINAL VALIDATION
-    # --------------------------------------------------------
 
     print()
     print("-" * 70)
@@ -714,13 +657,11 @@ def ingest_table(
     print("-" * 70)
 
     print(
-        f"Source count:    "
-        f"{source_count}"
+        f"Source count:    {source_count}"
     )
 
     print(
-        f"Extracted count: "
-        f"{extracted_count}"
+        f"Extracted count: {extracted_count}"
     )
 
     difference = (
@@ -729,8 +670,7 @@ def ingest_table(
     )
 
     print(
-        f"Difference:      "
-        f"{difference}"
+        f"Difference:      {difference}"
     )
 
     if difference != 0:
@@ -741,7 +681,6 @@ def ingest_table(
             "counts do not match."
         )
 
-    print()
     print(
         f"SUCCESS: {table_name} "
         "ingestion completed."
@@ -755,13 +694,15 @@ def ingest_table(
         "difference": difference,
     }
 
+
 # ============================================================
 # INGEST TABLE INCREMENTALLY
 # ============================================================
 
 def ingest_table_incremental(
     connection,
-    bucket,
+    gcs_hook,
+    bucket_name,
     table_name,
     config
 ):
@@ -773,21 +714,13 @@ def ingest_table_incremental(
     )
     print("=" * 70)
 
-    source_table = config[
-        "source_table"
-    ]
+    source_table = config["source_table"]
 
-    gcs_folder = config[
-        "gcs_folder"
-    ]
+    gcs_folder = config["gcs_folder"]
 
-    local_folder = config[
-        "local_folder"
-    ]
+    local_folder = config["local_folder"]
 
-    file_prefix = config[
-        "file_prefix"
-    ]
+    file_prefix = config["file_prefix"]
 
     pipeline_config = INCREMENTAL_TABLES[
         table_name
@@ -801,10 +734,6 @@ def ingest_table_incremental(
         "watermark_column"
     ]
 
-    # --------------------------------------------------------
-    # COLUMNS
-    # --------------------------------------------------------
-
     columns = get_columns(
         connection,
         source_table
@@ -813,6 +742,12 @@ def ingest_table_incremental(
     validate_order_columns(
         columns,
         [watermark_column]
+    )
+
+    current_watermark = get_watermark(
+        connection,
+        pipeline_name,
+        source_table
     )
 
     print(
@@ -824,33 +759,15 @@ def ingest_table_incremental(
         f"{watermark_column}"
     )
 
-    # --------------------------------------------------------
-    # CURRENT WATERMARK
-    # --------------------------------------------------------
-
-    current_watermark = get_watermark(
-        connection,
-        pipeline_name,
-        source_table
-    )
-
     print(
         f"Current watermark: "
         f"{current_watermark}"
     )
 
-    # --------------------------------------------------------
-    # LOCAL FOLDER
-    # --------------------------------------------------------
-
     local_folder.mkdir(
         parents=True,
         exist_ok=True
     )
-
-    # --------------------------------------------------------
-    # BATCH PROCESSING
-    # --------------------------------------------------------
 
     extracted_count = 0
 
@@ -872,12 +789,7 @@ def ingest_table_incremental(
         )
 
         if not records:
-
             break
-
-        # ----------------------------------------------------
-        # DETERMINE LAST KEY
-        # ----------------------------------------------------
 
         batch_max_key = max(
             record[watermark_column]
@@ -891,10 +803,6 @@ def ingest_table_incremental(
             f"{batch_number:03d}.jsonl"
         )
 
-        # ----------------------------------------------------
-        # LOCAL COPY
-        # ----------------------------------------------------
-
         output_file = (
             local_folder /
             filename
@@ -905,20 +813,13 @@ def ingest_table_incremental(
             output_file
         )
 
-        # ----------------------------------------------------
-        # GCS UPLOAD
-        # ----------------------------------------------------
-
         upload_to_gcs(
-            bucket,
+            gcs_hook,
+            bucket_name,
             records,
             gcs_folder,
             filename
         )
-
-        # ----------------------------------------------------
-        # VALIDATION
-        # ----------------------------------------------------
 
         record_count = len(records)
 
@@ -927,8 +828,7 @@ def ingest_table_incremental(
         max_extracted_key = batch_max_key
 
         print(
-            f"Batch "
-            f"{batch_number:03d}: "
+            f"Batch {batch_number:03d}: "
             f"{record_count} records | "
             f"Key range: "
             f"{last_key + 1} -> "
@@ -938,10 +838,6 @@ def ingest_table_incremental(
         last_key = batch_max_key
 
         batch_number += 1
-
-    # --------------------------------------------------------
-    # FINAL VALIDATION
-    # --------------------------------------------------------
 
     print()
     print("-" * 70)
@@ -965,10 +861,6 @@ def ingest_table_incremental(
         f"{max_extracted_key}"
     )
 
-    # --------------------------------------------------------
-    # UPDATE WATERMARK
-    # --------------------------------------------------------
-
     if extracted_count > 0:
 
         update_watermark(
@@ -985,7 +877,6 @@ def ingest_table_incremental(
             "Watermark unchanged."
         )
 
-    print()
     print(
         f"SUCCESS: {table_name} "
         "incremental ingestion completed."
@@ -1001,7 +892,7 @@ def ingest_table_incremental(
 
 
 # ============================================================
-# MAIN
+# MAIN INGESTION
 # ============================================================
 
 def run_ingestion():
@@ -1010,37 +901,44 @@ def run_ingestion():
     print(
         "STAGE 8 - GCS ingestion using Airflow"
     )
+    print("=" * 70)
 
     results = []
 
-    print("=" * 70)
-
-    connection = create_connection()
-
-    gcs_client = create_gcs_client()
-
-    bucket = validate_gcs_bucket(
-        gcs_client
-    )
+    connection = None
 
     try:
+
+        sqlserver_hook = create_sqlserver_hook()
+
+        connection = sqlserver_hook.get_conn()
+
+        gcs_hook = create_gcs_hook()
+
+        bucket_name = validate_gcs_bucket(
+            gcs_hook
+        )
 
         for table_name, config in TABLES.items():
 
             if table_name in INCREMENTAL_TABLES:
 
-                result = ingest_table_incremental(
-                    connection,
-                    bucket,
-                    table_name,
-                    config
+                result = (
+                    ingest_table_incremental(
+                        connection,
+                        gcs_hook,
+                        bucket_name,
+                        table_name,
+                        config
+                    )
                 )
 
             else:
 
                 result = ingest_table(
                     connection,
-                    bucket,
+                    gcs_hook,
+                    bucket_name,
                     table_name,
                     config
                 )
@@ -1049,7 +947,9 @@ def run_ingestion():
 
     finally:
 
-        connection.close()
+        if connection:
+
+            connection.close()
 
     print()
     print("=" * 70)
@@ -1059,9 +959,9 @@ def run_ingestion():
     print("=" * 70)
 
     return {
-    "status": "success",
-    "tables": results,
-}
+        "status": "success",
+        "tables": results,
+    }
 
 
 # ============================================================

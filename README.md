@@ -1,250 +1,336 @@
-# End-to-End Data Engineering Pipeline
+# End-to-End Data Engineering Platform
 
-A production-style **Data Engineering practice platform** built around the AdventureWorksDW2022 sample warehouse.
+A production-style **end-to-end Data Engineering portfolio project** built using the AdventureWorksDW2022 dataset.
 
-This project demonstrates the complete data lifecycle:
+The project demonstrates how data can be extracted from an operational SQL Server database, moved through a cloud-based ingestion platform, automatically loaded into Snowflake, transformed into analytics-ready dimensional models, and exposed for downstream BI consumption.
 
-**SQL Server → Python → Airflow → GCS → Pub/Sub → Snowpipe → Snowflake → dbt → Dimensional Model → Marketplace / BI**
-
-Supporting the platform are **Terraform, GCP IAM, Workload Identity Federation, Azure DevOps CI/CD, data-quality checks, incremental processing, CDC, SCD Type 2, monitoring and production-recovery patterns**.
-
-> **Project Status: ✅ Core implementation completed and validated**
->
-> This is a hands-on learning and portfolio project. It intentionally simulates enterprise architecture and production practices, but is not presented as a production system serving real business users.
+The platform also implements **Infrastructure as Code, environment isolation, CI/CD, federated authentication, data-quality validation, historical tracking, CDC, retry/idempotency patterns, and operational validation**.
 
 ---
 
-# 1. Project Objective
+## Project at a Glance
 
-The objective was to design and implement an end-to-end modern Data Engineering platform and understand not only how individual tools work, but **why each component exists and how the components interact**.
+| Area                | Implementation                    |
+| ------------------- | --------------------------------- |
+| Source              | SQL Server / AdventureWorksDW2022 |
+| Extraction          | Python / pyodbc                   |
+| Orchestration       | Apache Airflow                    |
+| Raw Storage         | Google Cloud Storage              |
+| Eventing            | Google Pub/Sub                    |
+| Warehouse           | Snowflake                         |
+| Automated Ingestion | Snowpipe                          |
+| Transformation      | dbt                               |
+| Modeling            | Dimensional / Star Schema         |
+| CDC                 | Snowflake Streams + Tasks         |
+| Historical Tracking | dbt Snapshot / SCD Type 2         |
+| Infrastructure      | Terraform                         |
+| Remote State        | GCS                               |
+| CI/CD               | Azure DevOps                      |
+| Authentication      | Workload Identity Federation      |
+| Source Control      | Git / GitHub                      |
+| BI                  | Tableau / Power BI                |
 
-The project covers:
+**Project status: ✅ Core implementation completed and validated**
 
-* SQL Server source connectivity
-* Python extraction and batch processing
-* JSON / JSONL file generation
-* Google Cloud Storage
-* Apache Airflow orchestration
-* Google Pub/Sub event notification
-* Snowflake external stages and storage integrations
-* Snowpipe automated ingestion
-* Snowflake LANDING / PREPARE / NORMALIZE / SCHEMATIZE / MARKETPLACE layers
-* dbt transformations and lineage
-* Dimensional data modeling
-* dbt data-quality tests
-* dbt Snapshots / SCD Type 2
-* Snowflake Streams and Tasks / CDC
-* Incremental processing concepts
-* Terraform Infrastructure as Code
-* Remote Terraform state in GCS
-* Environment isolation
-* Azure DevOps CI/CD
-* Workload Identity Federation
-* Secure key handling
-* Error handling, retry and idempotency patterns
-* Monitoring and operational validation
-* Performance and cost considerations
-* Production architecture and failure scenarios
+---
 
-The project follows:
+# 1. What Problem Does This Project Solve?
+
+A common Data Engineering problem is moving data from operational systems into an analytics platform in a way that is:
+
+* reliable
+* repeatable
+* scalable
+* observable
+* secure
+* maintainable
+* cost-aware
+* easy to deploy across environments
+
+A simple solution could be:
 
 ```text
-Learn → Implement → Validate → Understand → Interview Scenario → Move On
+SQL Server → Python → CSV → Warehouse
+```
+
+However, that approach does not adequately demonstrate how a modern enterprise data platform handles:
+
+* orchestration
+* cloud storage
+* event-driven ingestion
+* schema and transformation layers
+* data quality
+* historical data
+* change processing
+* infrastructure management
+* environment promotion
+* authentication
+* failure recovery
+* operational validation
+
+This project was therefore designed as a **complete Data Engineering platform rather than a single ETL script**.
+
+The objective was to build the platform end to end and demonstrate how the individual components work together as an architecture.
+
+---
+
+# 2. Business / Engineering Objective
+
+The primary objective was to take data from an existing SQL Server warehouse and build a reliable analytical data platform around it.
+
+The target flow is:
+
+```text
+Operational / Source Database
+            ↓
+       Data Extraction
+            ↓
+      Orchestration
+            ↓
+      Cloud Raw Storage
+            ↓
+      Event Notification
+            ↓
+    Automated Warehouse Load
+            ↓
+       Raw Warehouse
+            ↓
+      Transformation Layers
+            ↓
+      Dimensional Model
+            ↓
+     Business-ready Data
+            ↓
+       BI / Analytics
+```
+
+The platform additionally needed to support:
+
+```text
+Infrastructure as Code
+Environment Isolation
+CI/CD
+Federated Authentication
+Data Quality
+CDC
+Historical Tracking
+Retry / Idempotency
+Operational Validation
 ```
 
 ---
 
-# 2. Architecture
+# 3. Final Architecture
 
-## 2.1 Runtime Data Architecture
+## Runtime Data Architecture
 
 ```text
-┌──────────────────────────────┐
-│ SQL Server                   │
-│ AdventureWorksDW2022         │
-└──────────────┬───────────────┘
-               │
-               │ Python extraction
-               ▼
-┌──────────────────────────────┐
-│ Apache Airflow               │
-│ Orchestration / scheduling   │
-└──────────────┬───────────────┘
-               │
-               │ Upload
-               ▼
-┌──────────────────────────────┐
-│ Google Cloud Storage         │
-│ Raw ingestion layer          │
-└──────────────┬───────────────┘
-               │
-               │ Object-created event
-               ▼
-┌──────────────────────────────┐
-│ Google Pub/Sub               │
-│ Event notification           │
-└──────────────┬───────────────┘
-               │
-               │ Notification
-               ▼
-┌──────────────────────────────┐
-│ Snowpipe                     │
-│ Automated ingestion          │
-└──────────────┬───────────────┘
-               │
-               ▼
-┌──────────────────────────────────────────────┐
-│ Snowflake                                    │
-│                                              │
-│ LANDING     → Raw VARIANT ingestion          │
-│ PREPARE     → Type / structure normalization │
-│ NORMALIZE   → Cleansing / deduplication      │
-│ SCHEMATIZE  → Dimensional model              │
-│ MARKETPLACE → Business-ready datasets        │
-└──────────────────────┬───────────────────────┘
+┌─────────────────────────────┐
+│ SQL Server                  │
+│ AdventureWorksDW2022        │
+└─────────────┬───────────────┘
+              │
+              │ Python extraction
+              ▼
+┌─────────────────────────────┐
+│ Apache Airflow              │
+│ Source ingestion            │
+│ orchestration               │
+└─────────────┬───────────────┘
+              │
+              │ JSON / JSONL
+              ▼
+┌─────────────────────────────┐
+│ Google Cloud Storage        │
+│ Raw / durable storage       │
+└─────────────┬───────────────┘
+              │
+              │ Object-created event
+              ▼
+┌─────────────────────────────┐
+│ Google Pub/Sub              │
+│ Event notification          │
+└─────────────┬───────────────┘
+              │
+              │ Notification
+              ▼
+┌─────────────────────────────┐
+│ Snowpipe                    │
+│ Automated ingestion         │
+└─────────────┬───────────────┘
+              │
+              ▼
+┌────────────────────────────────────────────┐
+│ Snowflake                                  │
+│                                            │
+│ LANDING                                    │
+│     ↓                                      │
+│ PREPARE                                    │
+│     ↓                                      │
+│ NORMALIZE                                  │
+│     ↓                                      │
+│ SCHEMATIZE                                 │
+│     ↓                                      │
+│ MARKETPLACE                                │
+└─────────────────────┬──────────────────────┘
+                      │
+                      ▼
+              Tableau / Power BI
+```
+
+### Supporting Engineering Platform
+
+```text
+                    GitHub
                        │
-                       │ dbt
                        ▼
-              ┌─────────────────┐
-              │ BI / Analytics  │
-              │ Tableau / Power │
-              │ BI             │
-              └─────────────────┘
+                Azure DevOps
+                       │
+          ┌────────────┼────────────┐
+          ▼            ▼            ▼
+       Python         dbt       Terraform
+       validation   validation   validation
+                       │
+                       ▼
+                    WIF/OIDC
+                       │
+                       ▼
+                 Google Cloud
 ```
 
-### Architectural responsibility
+**Important architectural separation:**
 
-| Component          | Primary responsibility              |
-| ------------------ | ----------------------------------- |
-| SQL Server         | Source system                       |
-| Python             | Extraction / file generation        |
-| Airflow            | Ingestion orchestration             |
-| GCS                | Durable raw object storage          |
-| Pub/Sub            | Event notification                  |
-| Snowpipe           | Automated Snowflake ingestion       |
-| Snowflake          | Warehouse / storage / compute       |
-| dbt                | Transformation / modeling / testing |
-| Terraform          | Infrastructure provisioning         |
-| Azure DevOps       | CI/CD / deployment                  |
-| WIF                | Federated GCP authentication        |
-| GitHub             | Source control                      |
-| Tableau / Power BI | Analytics consumption               |
+* **Airflow** handles source ingestion orchestration.
+* **GCS** provides durable raw object storage.
+* **Pub/Sub** provides event notification.
+* **Snowpipe** handles automated warehouse ingestion.
+* **Snowflake** provides warehouse storage and compute.
+* **dbt** handles transformation and analytical modeling.
+* **Terraform** manages infrastructure.
+* **Azure DevOps** handles CI/CD and infrastructure deployment.
+* **Workload Identity Federation** provides secure CI/CD authentication.
 
-Airflow is intentionally used for **orchestration**, rather than making it responsible for warehouse transformation.
-
-Terraform is responsible for **infrastructure**, dbt for **data transformation**, and Azure DevOps for **deployment automation**.
+This separation keeps individual components focused on their intended responsibility.
 
 ---
 
-# 3. Technologies
+# 4. Why This Architecture?
 
-| Area                     | Technology                   |
-| ------------------------ | ---------------------------- |
-| Source database          | Microsoft SQL Server         |
-| Dataset                  | AdventureWorksDW2022         |
-| Programming              | Python                       |
-| Connectivity             | pyodbc / ODBC Driver 17      |
-| Orchestration            | Apache Airflow               |
-| Cloud platform           | Google Cloud Platform        |
-| Object storage           | Google Cloud Storage         |
-| Messaging                | Google Pub/Sub               |
-| Data warehouse           | Snowflake                    |
-| Automated ingestion      | Snowpipe                     |
-| Transformation           | dbt                          |
-| Modeling                 | Dimensional / Star Schema    |
-| Infrastructure           | Terraform                    |
-| Remote state             | GCS                          |
-| CI/CD                    | Azure DevOps Pipelines       |
-| Federated authentication | Workload Identity Federation |
-| Version control          | Git / GitHub                 |
-| BI                       | Tableau / Power BI           |
-| Platform concepts        | Docker / Kubernetes / GKE    |
-| Metadata database        | PostgreSQL                   |
-| Message broker concepts  | RabbitMQ / CloudAMQP         |
+The architecture was intentionally designed around several Data Architecture principles.
 
----
+## 4.1 Decoupling
 
-# 4. Project Structure
+The source database is not directly coupled to Snowflake.
 
 ```text
-Data-pipeline-end-to-end/
-│
-├── CI_CD_Pipeline/
-├── data/
-│
-├── DBT/
-│   ├── advworks_dbt/
-│   │   ├── analyses/
-│   │   ├── logs/
-│   │   ├── macros/
-│   │   ├── models/
-│   │   │   ├── landing/
-│   │   │   ├── prepare/
-│   │   │   ├── normalize/
-│   │   │   ├── schematize/
-│   │   │   └── marketplace/
-│   │   ├── snapshots/
-│   │   ├── tests/
-│   │   ├── dbt_project.yml
-│   │   └── README.md
-│   └── logs/
-│
-├── Interview_related/
-├── logs/
-│
-├── python-ingestion/
-│   ├── output/
-│   ├── storage/
-│   ├── storage_bucket/
-│   ├── Stage_1_extract_customer.py
-│   ├── Stage_2_extract_customer.py
-│   ├── Stage_3_extract_customer.py
-│   ├── Stage_4_extract.py
-│   ├── Stage_4_validate_extraction.py
-│   ├── Stage_6_extract_fact_internet_sales.py
-│   └── test_connection.py
-│
-├── source-db/
-├── Snowflake/
-├── Syllabus_and_Steps_StageWise/
-│
-├── terraform/
-│   ├── environments/
-│   │   ├── dev.tfvars
-│   │   ├── test.tfvars
-│   │   ├── preprod.tfvars
-│   │   └── prod.tfvars
-│   ├── main.tf
-│   ├── outputs.tf
-│   ├── variables.tf
-│   ├── versions.tf
-│   └── .terraform.lock.hcl
-│
-├── templates/
-│   ├── terraform-plan.yml
-│   └── terraform-apply.yml
-│
-├── azure-pipelines.yml
-├── azure-pipelines-debug-wif.yml
-├── .gitignore
-├── README.md
-└── Data-pipeline-end-to-end.code-workspace
+SQL Server
+    ↓
+Python
+    ↓
+GCS
+    ↓
+Snowflake
 ```
 
-Generated data, Terraform state, private keys, passphrases and secrets are intentionally excluded from Git.
+GCS acts as a durable boundary between extraction and warehouse ingestion.
+
+This allows files to be:
+
+* retained
+* validated
+* replayed
+* reprocessed
+* inspected independently of the source system
 
 ---
 
-# 5. Source Database
+## 4.2 Event-driven ingestion
+
+Instead of continuously polling Snowflake for new files:
 
 ```text
-Microsoft SQL Server
-        │
-        ▼
-AdventureWorksDW2022
+GCS object created
+        ↓
+Pub/Sub event
+        ↓
+Snowpipe
+        ↓
+Snowflake
 ```
 
-Primary tables:
+The warehouse ingestion process is triggered by the arrival of new data.
+
+This reduces unnecessary polling and creates a more responsive ingestion architecture.
+
+---
+
+## 4.3 Layered warehouse design
+
+Data is not transformed immediately into business tables.
+
+Instead:
+
+```text
+LANDING
+   ↓
+PREPARE
+   ↓
+NORMALIZE
+   ↓
+SCHEMATIZE
+   ↓
+MARKETPLACE
+```
+
+Each layer has a clear responsibility.
+
+This improves:
+
+* maintainability
+* debugging
+* lineage
+* data quality
+* reprocessing
+* separation of concerns
+
+---
+
+## 4.4 Infrastructure as Code
+
+Snowflake infrastructure is managed using Terraform rather than manually creating every object.
+
+This makes environments reproducible and allows infrastructure changes to be reviewed through version control and deployment pipelines.
+
+---
+
+## 4.5 Environment isolation
+
+The platform separates:
+
+```text
+DEV
+TEST
+PRE-PROD
+PROD
+```
+
+with corresponding Snowflake databases and warehouses.
+
+Terraform state is also separated by environment.
+
+---
+
+# 5. Source System
+
+The source is the Microsoft AdventureWorksDW2022 sample warehouse running on SQL Server.
+
+```text
+SQL Server
+    │
+    └── AdventureWorksDW2022
+```
+
+Primary source tables:
 
 ```text
 dbo.DimCustomer
@@ -252,7 +338,7 @@ dbo.DimProduct
 dbo.FactInternetSales
 ```
 
-Source configuration:
+Source configuration used during development:
 
 ```text
 Server: CHETAN\SQLSERVER2022
@@ -261,79 +347,121 @@ Driver: ODBC Driver 17 for SQL Server
 Authentication: Windows Authentication
 ```
 
+The source was intentionally treated as an external operational system rather than modifying it to accommodate downstream processing.
+
 ---
 
-# 6. Python Extraction
+# 6. Implementation Approach
 
-## Status: ✅ Completed and validated
+The project was implemented progressively from source extraction through infrastructure automation.
 
-Implemented:
+The implementation sequence was:
+
+```text
+1. Source connectivity
+        ↓
+2. Python extraction
+        ↓
+3. Extraction validation
+        ↓
+4. GCS raw ingestion
+        ↓
+5. Airflow orchestration
+        ↓
+6. Pub/Sub event notification
+        ↓
+7. Snowpipe ingestion
+        ↓
+8. Snowflake layered architecture
+        ↓
+9. dbt transformations
+        ↓
+10. Dimensional modeling
+        ↓
+11. Data-quality validation
+        ↓
+12. SCD Type 2
+        ↓
+13. CDC with Streams + Tasks
+        ↓
+14. Terraform infrastructure
+        ↓
+15. Remote Terraform state
+        ↓
+16. Environment separation
+        ↓
+17. Azure DevOps CI/CD
+        ↓
+18. Workload Identity Federation
+        ↓
+19. End-to-end validation
+```
+
+The project was developed and validated incrementally rather than attempting to build the entire architecture at once.
+
+---
+
+# 7. Python Extraction
+
+Python is responsible for extracting data from SQL Server and generating files suitable for cloud ingestion.
+
+Implemented capabilities:
 
 * SQL Server connectivity
 * pyodbc
 * batch extraction
 * deterministic ordering
-* JSON / JSONL generation
-* extraction validation
-* duplicate detection
+* JSON generation
+* JSONL generation
 * row-count validation
+* duplicate detection
+* extraction validation
 * reusable storage abstraction
-* customer extraction
-* FactInternetSales extraction
+* error handling
 
-### FactInternetSales validation
+## FactInternetSales extraction
+
+One of the larger source tables used in the project was:
 
 ```text
-Source table: dbo.FactInternetSales
-Rows: 60,398
-Batch size: 5,000
-Output format: JSONL
-Generated batches: 13
-Duplicate order lines: 0
+dbo.FactInternetSales
 ```
 
-Deterministic ordering uses:
+Validation:
+
+```text
+Source rows:          60,398
+Batch size:            5,000
+Generated files:          13
+Format:                 JSONL
+Duplicate order lines:     0
+```
+
+Deterministic ordering was implemented using:
 
 ```text
 SalesOrderNumber
 SalesOrderLineNumber
 ```
 
-This makes extraction reproducible and easier to validate and reprocess.
+This makes extraction reproducible and simplifies validation and reprocessing.
 
 ---
 
-# 7. GCS Raw Ingestion
+# 8. Raw Data Storage — Google Cloud Storage
 
-## Status: ✅ Completed and validated
+Extracted files are uploaded to GCS before being loaded into Snowflake.
 
-```text
-SQL Server
-    ↓
-Python
-    ↓
-JSONL
-    ↓
-GCS Raw Zone
-```
-
-Implemented concepts:
-
-* GCS authentication
-* bucket structure
-* object naming
-* raw-zone organization
-* date-based paths
-* upload validation
-* object existence validation
-* metadata
-* retry handling
-* idempotent upload patterns
-
-Example:
+Example bucket:
 
 ```text
 gs://advworks-dev-ingestion/
+```
+
+Example organization:
+
+```text
+advworks-dev-ingestion/
 
 ├── customer/
 │   └── YYYY/MM/DD/
@@ -342,15 +470,27 @@ gs://advworks-dev-ingestion/
     └── YYYY/MM/DD/
 ```
 
+The raw layer provides a durable copy of extracted data.
+
+This creates an important recovery boundary:
+
+```text
+SQL Server
+     ↓
+    GCS
+     ↓
+ Snowflake
+```
+
+If downstream processing fails, the raw object can be used for replay without requiring another extraction from the source.
+
 ---
 
-# 8. Apache Airflow
+# 9. Apache Airflow
 
-## Status: ✅ Completed and validated
+Airflow is used for **orchestration of source ingestion**.
 
-Airflow is responsible for **source ingestion orchestration**.
-
-Example DAG:
+The implemented flow is:
 
 ```text
 Extract
@@ -361,31 +501,73 @@ Generate JSONL
    ↓
 Upload to GCS
    ↓
-Validate GCS Object
+Validate GCS object
 ```
 
-Implemented / practiced:
+Airflow provides:
 
-* DAGs
-* tasks
-* dependencies
+* task dependency management
 * scheduling
 * retries
 * failure handling
 * logging
-* task monitoring
-* idempotency
-* backfill / catchup concepts
+* task-level monitoring
+* idempotent processing patterns
+* reprocessing capabilities
 
-The project also includes Docker / Kubernetes / GKE-oriented Airflow deployment concepts.
+Airflow was deliberately not used as the warehouse transformation engine.
+
+That responsibility belongs to dbt.
 
 ---
 
-# 9. Snowflake Ingestion
+# 10. Event-Driven Ingestion
 
-## Status: ✅ Completed and validated
+Once an object arrives in GCS, the next part of the pipeline is event-driven.
 
-Snowflake environments:
+```text
+GCS Object Created
+        ↓
+Google Pub/Sub
+        ↓
+Snowflake Notification Integration
+        ↓
+Snowpipe
+        ↓
+Snowflake LANDING
+```
+
+This removes the need for the warehouse ingestion process to continuously poll for files.
+
+The implementation was validated end to end using:
+
+```text
+GCS
+ ↓
+Pub/Sub
+ ↓
+Snowpipe
+ ↓
+ADVWORKS_DEV.LANDING.DIM_CUSTOMER
+```
+
+The validation included:
+
+* event generation
+* notification delivery
+* Snowpipe ingestion
+* loaded row count
+* source-file lineage
+* pending-file count
+* successful completion of the ingestion flow
+
+---
+
+# 11. Snowflake Architecture
+
+Snowflake is used as the analytical warehouse.
+
+Environments:
 
 ```text
 ADVWORKS_DEV
@@ -413,7 +595,11 @@ SCHEMATIZE
 MARKETPLACE
 ```
 
-Ingestion:
+---
+
+# 12. Snowflake Landing Architecture
+
+Snowpipe loads raw JSON/JSONL data into the LANDING layer.
 
 ```text
 GCS
@@ -427,7 +613,9 @@ Snowpipe
 LANDING
 ```
 
-Implemented:
+The landing layer preserves the source-oriented representation and metadata needed for downstream processing and traceability.
+
+Implemented concepts include:
 
 * external stages
 * storage integrations
@@ -441,48 +629,9 @@ Implemented:
 
 ---
 
-# 10. Event-Driven Ingestion
+# 13. dbt Transformation Architecture
 
-## Status: ✅ Completed and validated
-
-```text
-GCS object created
-       ↓
-Google Pub/Sub
-       ↓
-Snowflake notification integration
-       ↓
-Snowpipe
-       ↓
-Snowflake LANDING
-```
-
-A DEV end-to-end ingestion test validated:
-
-```text
-GCS
- ↓
-Pub/Sub
- ↓
-Snowpipe
- ↓
-ADVWORKS_DEV.LANDING.DIM_CUSTOMER
-```
-
-The test validated:
-
-* event generation
-* notification delivery
-* Snowpipe ingestion
-* loaded row count
-* source-file lineage
-* pending-file count returning to zero
-
----
-
-# 11. dbt Transformation Architecture
-
-## Status: ✅ Completed and validated
+The transformation architecture follows a layered approach.
 
 ```text
 LANDING
@@ -496,87 +645,105 @@ SCHEMATIZE
 MARKETPLACE
 ```
 
-### PREPARE
+## PREPARE
+
+Purpose:
+
+Convert semi-structured source data into usable relational structures.
+
+Responsibilities:
 
 * parse VARIANT data
-* cast source fields
+* cast fields
 * standardize data types
 * expose relational columns
-* preserve source metadata
+* retain source metadata
 
-### NORMALIZE
+---
+
+## NORMALIZE
+
+Purpose:
+
+Prepare clean and consistent data for analytical modeling.
+
+Responsibilities:
 
 * cleansing
 * trimming
 * casing
 * deduplication
-* type standardization
 * latest-record selection
+* type standardization
 
-### SCHEMATIZE
+---
 
-* dimensional model
-* facts
-* dimensions
+## SCHEMATIZE
+
+Purpose:
+
+Create analytical dimensions and facts.
+
+Responsibilities:
+
+* dimensional modeling
+* fact construction
+* dimension construction
 * business keys
 * analytical relationships
 
-### MARKETPLACE
+---
 
-* business-facing datasets
-* analytics-ready outputs
-* simplified consumption models
+## MARKETPLACE
+
+Purpose:
+
+Expose business-ready datasets for downstream consumers.
+
+Responsibilities:
+
+* simplified analytical datasets
+* business-facing structures
+* BI-ready outputs
 
 ---
 
-# 12. Validated dbt Model Counts
+# 14. Data Volumes and Validation
+
+Validated model counts:
 
 ```text
 PREPARE
-Customer: 18,484
-Product: 606
-Fact: 60,398
+--------
+Customer       18,484
+Product           606
+Fact           60,398
 
 NORMALIZE
-Customer: 18,484
-Product: 606
-Fact: 60,398
+---------
+Customer       18,484
+Product           606
+Fact           60,398
 
 SCHEMATIZE
-Customer: 18,484
-Product: 606
-Date: 10,000
-Fact: 60,398
+----------
+Customer       18,484
+Product           606
+Date           10,000
+Fact           60,398
 
 MARKETPLACE
-Fact: 60,398
+-----------
+Fact           60,398
 ```
+
+The counts were used as part of downstream validation to ensure that transformation stages did not unintentionally lose or duplicate records.
 
 ---
 
-# 13. dbt Data Quality
+# 15. Dimensional Model
 
-## Status: ✅ Implemented and validated
-
-Implemented validation:
-
-* duplicate detection
-* referential integrity
-* fact/dimension integrity
-* row-count validation
-* business-level validation
-
-Validated:
-
-```text
-dbt tests: 4 / 4 passed
-```
-
----
-
-# 14. Dimensional Data Modeling
-
-## Status: ✅ Completed
+The analytical model follows a star-schema approach.
 
 Core dimensions:
 
@@ -592,49 +759,86 @@ Core fact:
 FACT_INTERNET_SALES
 ```
 
-Concepts implemented:
-
-* grain definition
-* fact vs dimension separation
-* business keys
-* dimensional modeling
-* star schema
-* referential integrity
-* role-playing dates
-
-Example:
+Conceptually:
 
 ```text
-                 DIM_CUSTOMER
-                      │
-                      ▼
-DIM_PRODUCT ─────► FACT_SALES ◄───── DIM_DATE
-                      │
-                      ▼
-                 BI / Analytics
+                DIM_CUSTOMER
+                     │
+                     │
+                     ▼
+DIM_PRODUCT ───► FACT_INTERNET_SALES ◄─── DIM_DATE
+                     │
+                     ▼
+                BI / Analytics
+```
+
+The model separates:
+
+* descriptive attributes
+* measurable business events
+* business keys
+* analytical relationships
+
+This makes the final data easier for BI tools and analytical consumers to query.
+
+---
+
+# 16. Data Quality
+
+Data quality was treated as part of the pipeline rather than as a separate manual activity.
+
+Validation included:
+
+* duplicate detection
+* row-count validation
+* referential integrity
+* fact/dimension integrity
+* business-level checks
+* dbt tests
+
+Validated result:
+
+```text
+dbt tests: 4 / 4 passed
+```
+
+The pipeline therefore validates data at multiple stages:
+
+```text
+Source
+  ↓
+Extraction validation
+  ↓
+GCS validation
+  ↓
+Snowpipe validation
+  ↓
+dbt transformation
+  ↓
+dbt tests
+  ↓
+Dimensional model validation
 ```
 
 ---
 
-# 15. dbt Snapshots / SCD Type 2
+# 17. Historical Tracking — dbt Snapshot / SCD Type 2
 
-## Status: ✅ Completed and validated
+A dbt Snapshot was implemented to demonstrate historical tracking of changing customer attributes.
 
-A dbt Snapshot was implemented for customer history.
-
-The implementation demonstrates:
+Conceptually:
 
 ```text
-Current record
-     ↓
-Business change
-     ↓
-Close old version
-     ↓
-Create new version
+Current Record
+      ↓
+Business Change
+      ↓
+Close Existing Version
+      ↓
+Create New Version
 ```
 
-Snapshot metadata:
+The snapshot uses metadata such as:
 
 ```text
 DBT_SCD_ID
@@ -643,190 +847,153 @@ DBT_VALID_FROM
 DBT_VALID_TO
 ```
 
-A controlled test changed customer `11000` from:
+A controlled test changed customer `11000`:
 
 ```text
-YEARLY_INCOME = 90,000
+YEARLY_INCOME
+
+90,000
+   ↓
+95,000
 ```
 
-to:
+The resulting history contained:
 
 ```text
-YEARLY_INCOME = 95,000
-```
+Version 1
+YEARLY_INCOME = 90000
+DBT_VALID_TO  = change timestamp
 
-The snapshot produced:
-
-```text
-Old version
-DBT_VALID_TO = change timestamp
-
-New version
-DBT_VALID_TO = NULL
+Version 2
+YEARLY_INCOME = 95000
+DBT_VALID_TO  = NULL
 ```
 
 Validation:
 
 ```text
-CUSTOMER_KEY = 11000
-VERSION_COUNT = 2
-CURRENT_VERSION_COUNT = 1
+CUSTOMER_KEY       = 11000
+VERSION_COUNT      = 2
+CURRENT_VERSION   = 1
 ```
 
 ### Production consideration
 
-A production implementation should preferably use the **source business-change timestamp** rather than an ingestion timestamp such as `LOAD_TIMESTAMP`, otherwise unchanged records re-ingested with a new ingestion timestamp can create false historical versions.
+For a real production implementation, the preferred change timestamp should come from the source business change mechanism rather than relying only on an ingestion timestamp.
+
+Otherwise, re-ingestion of unchanged records with a new load timestamp can incorrectly appear to be a business change.
 
 ---
 
-# 16. Snowflake Streams + Tasks / CDC
+# 18. Change Data Capture — Snowflake Streams and Tasks
 
-## Status: ✅ Completed and validated
+The project also implements warehouse-side CDC processing.
 
 Architecture:
 
 ```text
-NORMALIZE.DIM_CUSTOMER_NORMALIZE
-             │
-             ▼
-        Snowflake Stream
-             │
-             ▼
-        Snowflake Task
-             │
-             ▼
-       CDC Target Table
+Normalized Table
+      ↓
+Snowflake Stream
+      ↓
+Snowflake Task
+      ↓
+CDC Target
 ```
 
-The project validated:
-
-### INSERT
+The implementation was validated for:
 
 ```text
-METADATA$ACTION = INSERT
-METADATA$ISUPDATE = FALSE
+INSERT
+UPDATE
+DELETE
 ```
 
-### UPDATE
-
-Snowflake exposes an update as:
+Snowflake update behavior was explicitly handled:
 
 ```text
-DELETE + ISUPDATE=TRUE
+DELETE + ISUPDATE = TRUE
         +
-INSERT + ISUPDATE=TRUE
+INSERT + ISUPDATE = TRUE
 ```
 
-### DELETE
-
-```text
-METADATA$ACTION = DELETE
-METADATA$ISUPDATE = FALSE
-```
-
-The Task handles:
+The processing logic distinguishes:
 
 ```text
 INSERT + ISUPDATE=FALSE → INSERT
+
 INSERT + ISUPDATE=TRUE  → UPDATE
+
 DELETE + ISUPDATE=FALSE → DELETE
-DELETE + ISUPDATE=TRUE  → ignore update's delete half
+
+DELETE + ISUPDATE=TRUE  → Ignore update's delete half
 ```
 
-Validation included:
+The CDC implementation was validated through:
 
-* successful Task execution
+* successful task execution
+* insert propagation
 * update propagation
 * delete propagation
 * stream consumption
-* `SYSTEM$STREAM_HAS_DATA()` returning `FALSE`
 * target-table validation
+* `SYSTEM$STREAM_HAS_DATA()` returning `FALSE`
 
----
-
-# 17. Incremental Processing
-
-## Status: 🟡 Advanced dbt learning / hardening area
-
-The project also covers:
-
-* watermarks
-* high-water marks
-* `is_incremental()`
-* `unique_key`
-* Snowflake `MERGE`
-* late-arriving data
-* full refresh
-* incremental vs CDC
-* idempotency
-
-Core pattern:
+This demonstrates the distinction between:
 
 ```text
-First run
-   ↓
-Full dataset
-   ↓
-Persist target
-
-Later run
-   ↓
-Read records newer than watermark
-   ↓
-Deduplicate
-   ↓
-MERGE
-   ↓
-Insert new / update existing
+Batch / Incremental Processing
+        vs
+Change Data Capture
+        vs
+Historical Tracking
 ```
 
-Production considerations:
-
-* late-arriving records
-* out-of-order timestamps
-* duplicate events
-* multiple changes for one key
-* watermark recovery
-* backfills
-* full refresh
-* idempotency
-
-This is deliberately classified as an advanced hardening area rather than overstating that every production edge case has been solved.
+These mechanisms solve different architectural problems.
 
 ---
 
-# 18. Terraform Infrastructure as Code
+# 19. Infrastructure as Code — Terraform
 
-## Status: ✅ Completed and validated
+Snowflake infrastructure is managed using Terraform.
 
-Implemented:
+Implemented resources include:
 
-* provider configuration
-* Snowflake databases
-* Snowflake schemas
-* Snowflake warehouses
+* databases
+* schemas
+* warehouses
 * stages
 * file formats
 * Snowpipes
 * notification integrations
-* environment-specific variables
+* environment-specific configuration
 * remote state
 * GCS backend
-* state locking
-* environment isolation
-* plan / apply workflow
-* Terraform validation
+* state isolation
+* deployment plans
 
-Versions:
+Versions used:
 
 ```text
-Terraform: 1.15.8
+Terraform:          1.15.8
 Snowflake Provider: 2.20.0
+```
+
+The objective was to make infrastructure:
+
+```text
+Repeatable
+Version controlled
+Reviewable
+Environment aware
+Recoverable
 ```
 
 ---
 
-# 19. Environment Strategy
+# 20. Environment Strategy
+
+The project separates environments:
 
 ```text
 DEV
@@ -838,7 +1005,7 @@ PRE-PROD
 PROD
 ```
 
-Snowflake:
+Snowflake databases:
 
 ```text
 ADVWORKS_DEV
@@ -847,16 +1014,7 @@ ADVWORKS_PREPROD
 ADVWORKS_PROD
 ```
 
-Warehouses:
-
-```text
-ETL_WH_DEV
-ETL_WH_TEST
-ETL_WH_PREPROD
-ETL_WH_PROD
-```
-
-Terraform state:
+Terraform state is isolated:
 
 ```text
 terraform/state/dev
@@ -865,19 +1023,19 @@ terraform/state/preprod
 terraform/state/prod
 ```
 
+This prevents one environment's state from being accidentally mixed with another environment.
+
 ---
 
-# 20. Remote Terraform State
+# 21. Remote Terraform State
 
-## Status: ✅ Completed
-
-Remote state:
+Terraform state is stored remotely in GCS.
 
 ```text
 gs://electric-tesla-507710-k2-tfstate/
 ```
 
-Example:
+Example state paths:
 
 ```text
 terraform/state/dev/default.tfstate
@@ -886,34 +1044,27 @@ terraform/state/preprod/default.tfstate
 terraform/state/prod/default.tfstate
 ```
 
-Practiced:
-
-* remote state
-* locking
-* state isolation
-* state recovery
-* environment-specific initialization
-* shared state management
+Remote state provides a shared and persistent source of infrastructure state rather than relying on local state files.
 
 ---
 
-# 21. Azure DevOps CI/CD
+# 22. CI/CD — Azure DevOps
 
-## Status: ✅ Completed and validated
+Azure DevOps is used for deployment automation and environment promotion.
 
-Pipeline responsibilities:
+The pipeline validates:
 
-* Python validation
-* dbt validation
-* Terraform validation
-* Google Cloud authentication
-* Terraform initialization
-* Terraform plan
-* environment promotion
-* approvals
-* Terraform apply
+```text
+Python
+dbt
+Terraform
+GCP authentication
+Terraform initialization
+Terraform plan
+Terraform apply
+```
 
-Pipeline:
+The deployment flow is:
 
 ```text
 GitHub
@@ -926,7 +1077,7 @@ dbt Validation
    ↓
 Terraform Validation
    ↓
-GCP WIF Authentication
+WIF Authentication
    ↓
 Terraform Plan
    ↓
@@ -947,139 +1098,242 @@ PRE-PROD
 PROD
 ```
 
+The key architectural point is that **Azure DevOps is a deployment/control-plane component, not part of the runtime data path**.
+
 ---
 
-# 22. Workload Identity Federation
+# 23. Secure CI/CD Authentication — Workload Identity Federation
 
-## Status: ✅ Completed and validated
+The project uses Workload Identity Federation rather than storing a long-lived GCP service-account key in Azure DevOps.
 
 ```text
 Azure DevOps
       │
-      │ OIDC token
+      │ OIDC
       ▼
-Google Workload Identity Provider
+Workload Identity Provider
       │
       ▼
 Workload Identity Pool
       │
       ▼
-Terraform CI Service Account
+GCP Service Account
       │
       ▼
 GCP Resources
 ```
 
-Benefits:
+This provides:
 
-* no long-lived GCP service-account key in Azure DevOps
-* short-lived credentials
 * federated authentication
-* reduced credential exposure
-* enterprise-oriented CI/CD authentication
-
-Key concepts:
-
-* OIDC
-* JWT
-* workload identity pool
-* workload identity provider
-* service-account impersonation
+* short-lived credentials
+* reduced secret exposure
+* no long-lived service-account key
+* better alignment with enterprise cloud security practices
 
 ---
 
-# 23. Security
+# 24. Security Design
 
-## Status: ✅ Implemented / practiced
+Security was considered across the platform.
 
-Security practices include:
+Implemented/practiced controls include:
 
-* `.gitignore` for secrets
+### Secrets
+
 * private keys excluded from Git
-* Snowflake passphrases excluded from Git
-* Azure DevOps secret variables
-* Azure DevOps secure files
-* GCP Workload Identity Federation
-* short-lived cloud authentication
-* environment separation
-* remote Terraform state
+* passphrases excluded from Git
+* secret variables in CI/CD
+* secure files
+* sensitive configuration outside source control
+
+### Cloud authentication
+
+* Workload Identity Federation
+* OIDC
+* service-account impersonation
 * IAM
-* least-privilege principles
-* Snowflake RBAC concepts
 
-Sensitive credentials should never be committed to the repository.
+### Environment isolation
+
+```text
+DEV
+TEST
+PRE-PROD
+PROD
+```
+
+### Snowflake
+
+* environment separation
+* warehouse separation
+* RBAC concepts
+* controlled access patterns
+
+The repository intentionally does not contain credentials or private keys.
 
 ---
 
-# 24. Error Handling, Retry & Idempotency
+# 25. Reliability Design
 
-## Status: ✅ Implemented / practiced
+The pipeline was designed around the assumption that failures will occur.
 
-Production failure pattern:
+Examples include:
 
 ```text
-File arrives
-     ↓
+Network failure
+Source database unavailable
+Duplicate file
+Partial upload
+Partial ingestion
+Transformation failure
+Data-quality failure
+Downstream outage
+Authentication failure
+```
+
+The project therefore incorporates:
+
+* retries
+* validation
+* idempotent processing patterns
+* deterministic extraction
+* checkpoints
+* file tracking
+* source-file lineage
+* replay/reprocessing concepts
+* environment isolation
+* infrastructure state management
+
+A simplified recovery model is:
+
+```text
+Data arrives
+    ↓
 Validate
-     ↓
+    ↓
 Process
-     ↓
-Success ─────────► Complete
-     │
-     └── Failure
-           ↓
-         Retry
-           ↓
-         Retry
-           ↓
-       Recover / Reprocess
+    ↓
+Success
+    │
+    └── Failure
+          ↓
+        Retry
+          ↓
+      Reprocess
+          ↓
+        Recover
 ```
 
-Covered:
-
-* retry strategies
-* exponential backoff
-* failed records
-* duplicate files
-* idempotent processing
-* checkpointing
-* partial failure
-* transaction boundaries
-* replay / reprocessing
-* recovery
-
-The project distinguishes between:
-
-```text
-Retryable failure
-```
-
-and:
-
-```text
-Non-retryable / data-quality failure
-```
+The GCS raw layer is particularly important because it creates a durable recovery boundary between extraction and warehouse ingestion.
 
 ---
 
-# 25. Monitoring & Operational Validation
+# 26. Scalability Considerations
 
-## Status: 🟡 Foundation implemented
+The project is a practice implementation, but the architecture intentionally uses patterns that support scaling.
 
-Operational validation covered:
+### Extraction
 
-* Airflow task execution
-* GCS objects
-* Pub/Sub events
-* Snowpipe ingestion
-* Snowflake load status
-* dbt execution
-* dbt tests
-* Terraform plan/apply
-* Azure DevOps stages
-* CDC stream consumption
+Batch extraction prevents loading an entire source table into memory.
 
-Important production metrics:
+### Storage
+
+GCS provides scalable object storage and decouples extraction from warehouse ingestion.
+
+### Eventing
+
+Pub/Sub allows ingestion events to be handled asynchronously.
+
+### Snowpipe
+
+Automated ingestion avoids manual file loading.
+
+### Transformation
+
+dbt pushes transformation work into the analytical warehouse.
+
+### Airflow
+
+Tasks can be scheduled, retried and parallelized depending on deployment configuration.
+
+### Infrastructure
+
+Terraform allows additional environments and infrastructure resources to be reproduced consistently.
+
+The project therefore demonstrates scalability patterns without claiming production-scale throughput testing.
+
+---
+
+# 27. Performance and Cost Considerations
+
+Performance and cost were considered at each major layer.
+
+## Python
+
+* batch sizing
+* deterministic extraction
+* memory usage
+* incremental extraction concepts
+
+## GCS
+
+* object organization
+* file sizing
+* partitioning
+* compression considerations
+
+## Snowflake
+
+* warehouse sizing
+* auto-suspend
+* auto-resume
+* query optimization
+* micro-partition awareness
+* clustering considerations
+* warehouse cost awareness
+
+## dbt
+
+* materialization selection
+* incremental processing
+* transformation pushdown
+* avoiding unnecessary full refreshes
+
+## Airflow
+
+* task concurrency
+* scheduling
+* retry configuration
+* executor considerations
+
+---
+
+# 28. Monitoring and Operational Validation
+
+The project implements **foundation-level operational monitoring and validation** rather than claiming to be a fully managed enterprise 24x7 observability platform.
+
+Validation points include:
+
+```text
+Airflow task execution
+        ↓
+GCS object existence
+        ↓
+Pub/Sub event
+        ↓
+Snowpipe ingestion
+        ↓
+Snowflake load status
+        ↓
+dbt execution
+        ↓
+dbt tests
+        ↓
+CDC task execution
+```
+
+Important production metrics identified include:
 
 ```text
 Pipeline duration
@@ -1092,319 +1346,489 @@ dbt test failures
 SLA status
 ```
 
-The project demonstrates monitoring patterns rather than claiming to operate a 24x7 enterprise monitoring platform.
-
 ---
 
-# 26. Performance & Cost
+# 29. Key Engineering Challenges
 
-## Status: 🟡 Implemented / analyzed
+The project was not built as a collection of isolated tutorials. Several implementation challenges required troubleshooting and architectural decisions.
 
-### Python
+## Challenge 1 — Reliable source extraction
 
-* batch size
-* memory usage
-* deterministic extraction
-* incremental extraction
-* streaming considerations
+### Problem
 
-### GCS
+Large source tables cannot always be extracted as one in-memory operation.
 
-* file sizing
-* object organization
-* partitioning
-* compression considerations
+### Solution
 
-### Snowflake
-
-* warehouse sizing
-* auto-suspend
-* auto-resume
-* query optimization
-* micro-partitions
-* clustering considerations
-* caching
-* warehouse cost awareness
-
-### dbt
-
-* materialization selection
-* incremental models
-* dependency management
-* avoiding unnecessary full refreshes
-* transformation pushdown
-
-### Airflow
-
-* task concurrency
-* scheduling
-* retries
-* executor considerations
-
----
-
-# 27. Production Architecture Patterns
-
-### Reliability
-
-* retries
-* idempotency
-* checkpoints
-* replay
-* validation
-* failure isolation
-
-### Scalability
-
-* batch extraction
-* object storage
-* event-driven ingestion
-* incremental processing
-* parallelizable tasks
-
-### Security
-
-* IAM
-* WIF
-* secure files
-* private keys outside Git
-* environment separation
-* least privilege
-
-### Maintainability
-
-* Terraform
-* dbt
-* layered architecture
-* CI/CD
-* reusable Python components
-
-### Data Quality
-
-* source validation
-* duplicate detection
-* referential integrity
-* dbt tests
-* row-count checks
-* business validation
-
----
-
-# 28. Final End-to-End Data Flow
+Implemented batch extraction with deterministic ordering and validation.
 
 ```text
-AdventureWorksDW2022
-        │
-        ▼
+Source
+ ↓
+Batch extraction
+ ↓
+JSONL
+ ↓
+Row-count validation
+ ↓
+Duplicate validation
+```
+
+---
+
+## Challenge 2 — Decoupling extraction from warehouse ingestion
+
+### Problem
+
+Direct source-to-warehouse loading creates tight coupling between the operational database and analytical platform.
+
+### Solution
+
+Introduced GCS as the durable raw boundary.
+
+```text
 SQL Server
-        │
-        ▼
-Python Extraction
-        │
-        ▼
-Apache Airflow
-        │
-        ▼
-Google Cloud Storage
-        │
-        ▼
-Google Pub/Sub
-        │
-        ▼
-Snowpipe
-        │
-        ▼
-Snowflake LANDING
-        │
-        ▼
-dbt PREPARE
-        │
-        ▼
-dbt NORMALIZE
-        │
-        ▼
-dbt SCHEMATIZE
-        │
-        ▼
-dbt MARKETPLACE
-        │
-        ▼
-Tableau / Power BI
+   ↓
+GCS
+   ↓
+Snowflake
 ```
 
-Supporting:
+This also enables replay and reprocessing.
+
+---
+
+## Challenge 3 — Event-driven Snowflake ingestion
+
+### Problem
+
+The warehouse should not depend on manual file loading.
+
+### Solution
+
+Implemented:
 
 ```text
-Terraform
-Azure DevOps
-GitHub
-GCP IAM
-Workload Identity Federation
-Snowflake RBAC
-Monitoring / Logging
+GCS
+ ↓
+Pub/Sub
+ ↓
+Snowpipe
+ ↓
+Snowflake
+```
+
+and validated the end-to-end event path.
+
+---
+
+## Challenge 4 — Maintaining transformation boundaries
+
+### Problem
+
+Putting all transformation logic into one large SQL model makes debugging and maintenance difficult.
+
+### Solution
+
+Separated transformations into:
+
+```text
+PREPARE
+NORMALIZE
+SCHEMATIZE
+MARKETPLACE
+```
+
+Each layer has a specific purpose.
+
+---
+
+## Challenge 5 — Historical data
+
+### Problem
+
+A normal dimension table only represents current state.
+
+### Solution
+
+Implemented dbt Snapshot / SCD Type 2.
+
+```text
+Old version
+     ↓
+Close version
+     ↓
+New version
 ```
 
 ---
 
-# 29. Validation Summary
+## Challenge 6 — Warehouse CDC semantics
 
-| Area                            | Status     |
-| ------------------------------- | ---------- |
-| SQL Server connectivity         | ✅          |
-| Python extraction               | ✅          |
-| Batch processing                | ✅          |
-| JSON / JSONL                    | ✅          |
-| GCS ingestion                   | ✅          |
-| Airflow orchestration           | ✅          |
-| Pub/Sub eventing                | ✅          |
-| Snowpipe ingestion              | ✅          |
-| Snowflake LANDING               | ✅          |
-| dbt PREPARE                     | ✅          |
-| dbt NORMALIZE                   | ✅          |
-| dbt SCHEMATIZE                  | ✅          |
-| dbt MARKETPLACE                 | ✅          |
-| Dimensional modeling            | ✅          |
-| dbt data-quality tests          | ✅          |
-| dbt Snapshot / SCD2             | ✅          |
-| Snowflake Streams               | ✅          |
-| Snowflake Tasks                 | ✅          |
-| CDC insert/update/delete        | ✅          |
-| Terraform IaC                   | ✅          |
-| Remote Terraform state          | ✅          |
-| Environment separation          | ✅          |
-| Azure DevOps CI/CD              | ✅          |
-| GCP WIF                         | ✅          |
-| Security practices              | ✅          |
-| Retry / idempotency patterns    | ✅          |
-| Monitoring foundation           | 🟡         |
-| Advanced incremental edge cases | 🟡         |
-| Enterprise 24x7 operations      | Conceptual |
+### Problem
+
+Snowflake represents updates in a stream as paired delete/insert records.
+
+### Solution
+
+Explicitly handled:
+
+```text
+INSERT
+UPDATE
+DELETE
+```
+
+using `METADATA$ACTION` and `METADATA$ISUPDATE`.
 
 ---
 
-# 30. Evidence / Screenshots
+## Challenge 7 — Reproducible infrastructure
 
-The repository should contain **selected evidence rather than dozens of screenshots**.
+### Problem
 
-## Screenshot 01 — Final Architecture
+Manually creating infrastructure across multiple environments introduces configuration drift.
 
-![alt text](image.png)
+### Solution
 
+Moved infrastructure into Terraform with isolated remote state.
 
+---
 
-## Screenshot 02 — Airflow DAG Success
+## Challenge 8 — CI/CD cloud authentication
 
+### Problem
 
+Using long-lived service-account keys creates unnecessary credential-management risk.
 
-## Screenshot 03 — GCS Raw Ingestion
+### Solution
 
-**[SCREENSHOT PLACEHOLDER — GCS BUCKET]**
+Implemented Azure DevOps OIDC → GCP Workload Identity Federation.
 
-Capture a representative JSON/JSONL object inside:
+---
+
+# 30. End-to-End Validation
+
+The final implementation was validated progressively.
+
+### Source
+
+```text
+SQL Server connectivity              ✅
+Python extraction                    ✅
+Batch processing                     ✅
+JSON / JSONL generation              ✅
+Duplicate validation                 ✅
+```
+
+### Cloud ingestion
+
+```text
+GCS upload                           ✅
+GCS object validation                ✅
+Pub/Sub notification                 ✅
+Snowpipe ingestion                   ✅
+Snowflake landing                    ✅
+```
+
+### Transformation
+
+```text
+dbt PREPARE                          ✅
+dbt NORMALIZE                        ✅
+dbt SCHEMATIZE                       ✅
+dbt MARKETPLACE                      ✅
+Dimensional modeling                 ✅
+dbt tests                            4 / 4 passed
+```
+
+### Historical and change processing
+
+```text
+dbt Snapshot / SCD2                  ✅
+Snowflake Streams                    ✅
+Snowflake Tasks                      ✅
+CDC INSERT                           ✅
+CDC UPDATE                           ✅
+CDC DELETE                           ✅
+```
+
+### Infrastructure and deployment
+
+```text
+Terraform IaC                        ✅
+Remote Terraform state               ✅
+Environment separation               ✅
+Azure DevOps CI/CD                   ✅
+Workload Identity Federation         ✅
+Security practices                   ✅
+```
+
+### Advanced areas
+
+```text
+Monitoring foundation                🟡
+Advanced incremental edge cases      🟡
+Enterprise 24x7 operations           Conceptual
+```
+
+The 🟡 areas are deliberately not presented as fully production-hardened capabilities.
+
+---
+
+# 31. Evidence Gallery
+
+The repository contains selected screenshots demonstrating that the architecture was actually implemented and validated.
+
+Screenshots are intentionally limited to meaningful evidence rather than documenting every development step.
+
+---
+
+## 31.1 Final Architecture
+
+**File:**
+
+```text
+docs/images/01-final-architecture.png
+```
+
+Capture the complete architecture:
+
+```text
+SQL Server
+   ↓
+Python
+   ↓
+Airflow
+   ↓
+GCS
+   ↓
+Pub/Sub
+   ↓
+Snowpipe
+   ↓
+Snowflake
+   ↓
+dbt
+   ↓
+BI
+```
+
+Also show the supporting:
+
+```text
+GitHub
+Azure DevOps
+Terraform
+WIF
+```
+
+This should be the first and most important screenshot.
+
+---
+
+## 31.2 Airflow Successful DAG
+
+**File:**
+
+```text
+docs/images/02-airflow-success.png
+```
+
+Capture the Airflow Graph/Grid view showing the successful execution of:
+
+```text
+Extract
+   ↓
+Validate
+   ↓
+Generate
+   ↓
+Upload
+   ↓
+Validate GCS Object
+```
+
+All relevant tasks should be visibly successful.
+
+---
+
+## 31.3 GCS Raw Ingestion
+
+**File:**
+
+```text
+docs/images/03-gcs-raw-ingestion.png
+```
+
+Show:
 
 ```text
 advworks-dev-ingestion/
 ```
 
-Show the raw-zone folder/object structure.
+with representative customer or fact JSON/JSONL files.
+
+Preferably show the date-partitioned object structure.
+
+Do not show credentials or sensitive configuration.
 
 ---
 
-## Screenshot 04 — Pub/Sub Event
+## 31.4 Pub/Sub Event Notification
 
-**[SCREENSHOT PLACEHOLDER — PUB/SUB]**
+**File:**
 
-Capture the Pub/Sub topic/subscription configuration demonstrating the GCS object-created notification path.
+```text
+docs/images/04-pubsub-event.png
+```
 
----
+Capture the Pub/Sub topic/subscription configuration demonstrating the GCS object-created event path.
 
-## Screenshot 05 — Snowpipe Successful Load
+The purpose of this screenshot is to prove:
 
-![alt text](image-2.png)
-
-**[SCREENSHOT PLACEHOLDER — SNOWPIPE]**
-
-![alt text](image-3.png)
-
-![alt text](image-4.png)
-
-![alt text](image-5.png)
-
-![alt text](image-6.png)
----
-
-## Screenshot 06 — Snowflake Layered Warehouse
-
-**[SCREENSHOT PLACEHOLDER — SNOWFLAKE LAYERS]**
-
-![alt text](image-7.png)
-
-
-## Screenshot 07 — dbt Lineage
-
-**[SCREENSHOT PLACEHOLDER — DBT LINEAGE]**
-
-![alt text](image-8.png)
-
-![alt text](image-9.png)
-
-![alt text](image-10.png)
-
-
+```text
+GCS object
+    ↓
+Pub/Sub event
+```
 
 ---
 
-## Screenshot 08 — dbt Data Quality
+## 31.5 Snowpipe Successful Load
 
-**[SCREENSHOT PLACEHOLDER — DBT TESTS]**
+**File:**
 
-Capture:
+```text
+docs/images/05-snowpipe-success.png
+```
+
+Capture Snowflake evidence showing:
+
+* Snowpipe
+* load history
+* source filename
+* rows loaded
+* successful ingestion
+* pending file count returning to zero
+
+The strongest evidence is the actual successful load rather than simply showing the pipe definition.
+
+---
+
+## 31.6 Snowflake Layered Architecture
+
+**File:**
+
+```text
+docs/images/06-snowflake-layers.png
+```
+
+Show the Snowflake database/schema browser containing:
+
+```text
+LANDING
+PREPARE
+NORMALIZE
+SCHEMATIZE
+MARKETPLACE
+```
+
+This visually communicates the warehouse architecture.
+
+---
+
+## 31.7 dbt Lineage
+
+**File:**
+
+```text
+docs/images/07-dbt-lineage.png
+```
+
+Capture the dbt lineage graph showing the flow between:
+
+```text
+LANDING
+ ↓
+PREPARE
+ ↓
+NORMALIZE
+ ↓
+SCHEMATIZE
+ ↓
+MARKETPLACE
+```
+
+This is one of the strongest screenshots for demonstrating transformation architecture.
+
+---
+
+## 31.8 dbt Data Quality
+
+**File:**
+
+```text
+docs/images/08-dbt-tests.png
+```
+
+Capture the dbt test result showing:
 
 ```text
 4 / 4 tests passed
 ```
 
-Include the relevant test names if visible.
+If possible, include the test names.
 
 ---
 
-## Screenshot 09 — dbt Snapshot / SCD2
+## 31.9 SCD Type 2 / Snapshot
 
-**[SCREENSHOT PLACEHOLDER — SCD2 HISTORY]**
+**File:**
 
-Capture customer `11000` showing:
+```text
+docs/images/09-scd2-snapshot.png
+```
+
+Show customer `11000` with:
 
 ```text
 Version 1
 YEARLY_INCOME = 90000
-DBT_VALID_TO = change timestamp
+DBT_VALID_TO  = populated
 
 Version 2
 YEARLY_INCOME = 95000
-DBT_VALID_TO = NULL
+DBT_VALID_TO  = NULL
 ```
 
-This is particularly valuable because it visually proves historical tracking.
+This is strong evidence that historical tracking was implemented rather than merely described.
 
 ---
 
-## Screenshot 10 — Snowflake Streams + Tasks CDC
+## 31.10 Snowflake Streams + Tasks CDC
 
-**[SCREENSHOT PLACEHOLDER — CDC]**
-
-Capture:
+**File:**
 
 ```text
-NORMALIZE
-   ↓
-STREAM
-   ↓
-TASK
-   ↓
-CDC TARGET
+docs/images/10-snowflake-cdc.png
 ```
 
-Ideally show an UPDATE represented as:
+Capture evidence showing:
+
+```text
+Source Table
+    ↓
+Stream
+    ↓
+Task
+    ↓
+CDC Target
+```
+
+Ideally include Task History showing a successful execution.
+
+If available, also show stream records demonstrating the update representation:
 
 ```text
 DELETE + ISUPDATE=TRUE
@@ -1413,26 +1837,45 @@ INSERT + ISUPDATE=TRUE
 
 ---
 
-## Screenshot 11 — Terraform Plan
+## 31.11 Terraform Plan
 
-**[SCREENSHOT PLACEHOLDER — TERRAFORM PLAN]**
+**File:**
+
+```text
+docs/images/11-terraform-plan.png
+```
 
 Capture a successful Terraform plan.
 
-Do not show credentials or private-key information.
+The screenshot should demonstrate that infrastructure is managed declaratively.
+
+Do not expose:
+
+* credentials
+* private keys
+* tokens
+* secrets
 
 ---
 
-## Screenshot 12 — Azure DevOps Pipeline
+## 31.12 Azure DevOps CI/CD
 
-**[SCREENSHOT PLACEHOLDER — AZURE DEVOPS CI/CD]**
+**File:**
 
-Capture the pipeline showing:
+```text
+docs/images/12-azure-devops-pipeline.png
+```
+
+This is a **high-priority screenshot** because the Azure DevOps environment/trial is temporary.
+
+Capture the pipeline run/stage view showing as much of the following as possible:
 
 ```text
 Validation
    ↓
 WIF
+   ↓
+Terraform Plan
    ↓
 DEV
    ↓
@@ -1443,25 +1886,48 @@ PRE-PROD
 PROD
 ```
 
-Include approval gates if visible.
+If approval gates are visible, include them.
 
 ---
 
-## Screenshot 13 — Workload Identity Federation
+## 31.13 Workload Identity Federation
 
-**[SCREENSHOT PLACEHOLDER — GCP WIF]**
+**File:**
 
-Capture the WIF configuration showing external identity federation.
+```text
+docs/images/13-wif.png
+```
 
-Do not expose tokens or credentials.
+Show the GCP Workload Identity Federation configuration.
+
+The screenshot should demonstrate:
+
+```text
+Azure DevOps OIDC
+       ↓
+WIF Provider
+       ↓
+GCP Service Account
+```
+
+Do not expose:
+
+* tokens
+* JWTs
+* private keys
+* secret values
 
 ---
 
-## Screenshot 14 — Repository
+## 31.14 Repository Structure
 
-**[SCREENSHOT PLACEHOLDER — GITHUB REPOSITORY]**
+**File:**
 
-Capture the repository root showing:
+```text
+docs/images/14-repository-structure.png
+```
+
+Capture the GitHub repository root showing major implementation areas such as:
 
 ```text
 python-ingestion/
@@ -1472,360 +1938,493 @@ source-db/
 Snowflake/
 ```
 
+This gives reviewers a quick understanding of the implementation scope.
+
 ---
 
-# 31. Screenshot Priority
+# 32. Recommended Screenshot Priority
 
-If you can only add a limited number, prioritize:
+If screenshots need to be captured quickly, prioritize them in this order:
+
+### Critical — capture before temporary environments disappear
 
 ```text
-1. Final architecture
-2. Airflow successful DAG
-3. GCS object
-4. Pub/Sub notification
-5. Snowpipe successful load
-6. Snowflake layered model
-7. dbt lineage
-8. dbt tests
-9. dbt Snapshot / SCD2
-10. Snowflake Streams + Tasks CDC
-11. Azure DevOps pipeline
-12. Terraform plan
-13. WIF
+1. Azure DevOps CI/CD
+2. Snowflake Snowpipe successful load
+3. Snowflake layered warehouse
+4. dbt lineage
+5. dbt Snapshot / SCD2
+6. Snowflake Streams + Tasks
+7. Terraform plan
+8. WIF configuration
 ```
 
-Together these tell the complete engineering story:
+### Strong portfolio evidence
 
 ```text
-Source
-  ↓
-Extraction
-  ↓
-Orchestration
-  ↓
-Cloud Storage
-  ↓
-Eventing
-  ↓
-Automated Ingestion
-  ↓
-Warehouse
-  ↓
-Transformation
-  ↓
-Data Quality
-  ↓
-Historical Tracking
-  ↓
-CDC
-  ↓
-Infrastructure
-  ↓
+9. Airflow successful DAG
+10. GCS raw objects
+11. Pub/Sub event configuration
+12. dbt tests
+13. Repository structure
+14. Final architecture
+```
+
+The **final architecture diagram** should remain permanently in the repository even after cloud trials expire.
+
+---
+
+# 33. Screenshot Security Rules
+
+Screenshots should demonstrate implementation without exposing secrets.
+
+Never expose:
+
+```text
+Passwords
+Private keys
+Service-account keys
+Snowflake passphrases
+Access tokens
+JWTs
+Secret variables
+Connection strings containing credentials
+Personal authentication information
+```
+
+If necessary, crop or blur:
+
+* account identifiers
+* project identifiers
+* email addresses
+* tokens
+* secret values
+
+The goal is to demonstrate the architecture and implementation, not the credentials used to operate it.
+
+---
+
+# 34. Repository Structure
+
+```text
+Data-pipeline-end-to-end/
+
+├── CI_CD_Pipeline/
+├── data/
+│
+├── DBT/
+│   └── advworks_dbt/
+│       ├── analyses/
+│       ├── logs/
+│       ├── macros/
+│       ├── models/
+│       │   ├── landing/
+│       │   ├── prepare/
+│       │   ├── normalize/
+│       │   ├── schematize/
+│       │   └── marketplace/
+│       ├── snapshots/
+│       ├── tests/
+│       └── dbt_project.yml
+│
+├── Interview_related/
+│
+├── python-ingestion/
+│   ├── output/
+│   ├── storage/
+│   ├── storage_bucket/
+│   ├── Stage_1_extract_customer.py
+│   ├── Stage_2_extract_customer.py
+│   ├── Stage_3_extract_customer.py
+│   ├── Stage_4_extract.py
+│   ├── Stage_4_validate_extraction.py
+│   ├── Stage_6_extract_fact_internet_sales.py
+│   └── test_connection.py
+│
+├── source-db/
+├── Snowflake/
+├── terraform/
+│   ├── environments/
+│   │   ├── dev.tfvars
+│   │   ├── test.tfvars
+│   │   ├── preprod.tfvars
+│   │   └── prod.tfvars
+│   ├── main.tf
+│   ├── outputs.tf
+│   ├── variables.tf
+│   ├── versions.tf
+│   └── .terraform.lock.hcl
+│
+├── templates/
+│   ├── terraform-plan.yml
+│   └── terraform-apply.yml
+│
+├── docs/
+│   └── images/
+│
+├── azure-pipelines.yml
+├── azure-pipelines-debug-wif.yml
+├── .gitignore
+├── README.md
+└── Data-pipeline-end-to-end.code-workspace
+```
+
+Generated data, credentials, Terraform state, private keys and secrets are intentionally excluded from Git.
+
+---
+
+# 35. What the Final Platform Demonstrates
+
+The completed project demonstrates a complete set of modern Data Engineering patterns.
+
+### Ingestion
+
+```text
+SQL Server
+Python
+Batch extraction
+JSON / JSONL
+GCS
+```
+
+### Orchestration
+
+```text
+Airflow
+Scheduling
+Dependencies
+Retries
+Validation
+```
+
+### Event-driven architecture
+
+```text
+GCS
+Pub/Sub
+Snowpipe
+```
+
+### Warehouse architecture
+
+```text
+Snowflake
+LANDING
+PREPARE
+NORMALIZE
+SCHEMATIZE
+MARKETPLACE
+```
+
+### Data modeling
+
+```text
+Dimensions
+Facts
+Business keys
+Star schema
+```
+
+### Data quality
+
+```text
+Row counts
+Duplicates
+Referential integrity
+dbt tests
+```
+
+### Historical data
+
+```text
+dbt Snapshot
+SCD Type 2
+```
+
+### Change processing
+
+```text
+Snowflake Streams
+Snowflake Tasks
+INSERT
+UPDATE
+DELETE
+```
+
+### Infrastructure
+
+```text
+Terraform
+Remote state
+Environment isolation
+```
+
+### Deployment
+
+```text
+Azure DevOps
 CI/CD
-  ↓
+Approvals
+Environment promotion
+```
+
+### Security
+
+```text
+WIF
+OIDC
+IAM
+Secret isolation
+Environment separation
+```
+
+---
+
+# 36. Final Architecture View
+
+The complete solution can be summarized as:
+
+```text
+                         DATA PLANE
+                         ──────────
+
+ SQL Server
+ AdventureWorksDW2022
+        │
+        ▼
+ Python Extraction
+        │
+        ▼
+ Apache Airflow
+        │
+        ▼
+ Google Cloud Storage
+        │
+        ▼
+ Google Pub/Sub
+        │
+        ▼
+ Snowpipe
+        │
+        ▼
+ Snowflake LANDING
+        │
+        ▼
+ dbt PREPARE
+        │
+        ▼
+ dbt NORMALIZE
+        │
+        ▼
+ dbt SCHEMATIZE
+        │
+        ▼
+ dbt MARKETPLACE
+        │
+        ▼
+ Tableau / Power BI
+
+
+                       CONTROL PLANE
+                       ─────────────
+
+ GitHub
+    │
+    ▼
+ Azure DevOps
+    │
+    ├── Python validation
+    ├── dbt validation
+    ├── Terraform validation
+    ├── WIF authentication
+    ├── Terraform plan
+    ├── Environment approval
+    └── Terraform apply
+
+
+                     INFRASTRUCTURE
+                     ──────────────
+
+ Terraform
+    │
+    ├── Snowflake databases
+    ├── Schemas
+    ├── Warehouses
+    ├── Stages
+    ├── Snowpipes
+    ├── Integrations
+    └── Environment configuration
+
+ Remote State
+    │
+    └── GCS
+
+
+                       SECURITY
+                       ────────
+
+ Azure DevOps
+       │
+       ▼
+      OIDC
+       │
+       ▼
+ Workload Identity Federation
+       │
+       ▼
+ GCP Service Account
+       │
+       ▼
+ GCP Resources
+```
+
+---
+
+# 37. Project Outcome
+
+The project started as an exercise in extracting data from SQL Server and evolved into a complete Data Engineering platform.
+
+The final implementation demonstrates how to move from:
+
+```text
+Source Data
+```
+
+to:
+
+```text
+Reliable Cloud Ingestion
+```
+
+to:
+
+```text
+Structured Analytical Data
+```
+
+while incorporating:
+
+```text
+Orchestration
+Event-driven ingestion
+Data quality
+Dimensional modeling
+Historical tracking
+CDC
+Infrastructure as Code
+CI/CD
+Federated authentication
+Environment isolation
+Reliability
+Scalability considerations
+```
+
+The most important outcome was not simply getting individual tools to work.
+
+It was understanding **where each component belongs in the architecture, what responsibility it owns, what problem it solves, and how the entire platform behaves as one system**.
+
+---
+
+# 38. Limitations and Production Considerations
+
+This is a personal portfolio project built using the AdventureWorks sample dataset.
+
+It is intentionally designed using enterprise-style architecture patterns, but it does not claim to represent a production platform operating at enterprise scale.
+
+The following areas would require additional engineering in a real production environment:
+
+* high-volume distributed ingestion
+* multi-region disaster recovery
+* enterprise observability
+* centralized alerting
+* formal data governance
+* schema registry and contract management
+* enterprise metadata/catalog integration
+* advanced incremental edge cases
+* automated production rollback
+* large-scale performance benchmarking
+* 24x7 operational support
+* formal security/compliance controls
+
+These are intentionally identified as production extensions rather than being represented as already solved.
+
+---
+
+# 39. Portfolio Evidence
+
+The repository contains the implementation code together with the images.
+
+
+
+Recommended final gallery:
+
+```text
+01-final-architecture.png
+```
+
+```
+02-airflow-success
+```
+
+![airflow-dag](image-17.png)
+
+![airflow-connections](image-20.png)
+
+![airflow-graph](image-18.png)
+
+![airflow-log](image-19.png)
+
+![airflow-xcom](image-21.png)
+
+03-gcs-raw-ingestion.png
+04-pubsub-event.png
+05-snowpipe-success.png
+06-snowflake-layers.png
+07-dbt-lineage.png
+08-dbt-tests.png
+09-scd2-snapshot.png
+10-snowflake-cdc.png
+11-terraform-plan.png
+12-azure-devops-pipeline.png
+13-wif.png
+14-repository-structure.png
+```
+
+This gives a reviewer a visual path through the project:
+
+```text
+Architecture
+    ↓
+Extraction
+    ↓
+Orchestration
+    ↓
+Storage
+    ↓
+Eventing
+    ↓
+Automated ingestion
+    ↓
+Warehouse
+    ↓
+Transformation
+    ↓
+Data quality
+    ↓
+Historical tracking
+    ↓
+CDC
+    ↓
+Infrastructure
+    ↓
+CI/CD
+    ↓
 Security
 ```
 
 ---
 
-# 32. Security Notice for Screenshots
-
-Never expose:
-
-* passwords
-* private keys
-* Snowflake passphrases
-* access tokens
-* JWTs
-* service-account keys
-* secret variables
-* connection strings containing credentials
-* personal authentication information
-
-Screenshots should demonstrate architecture and successful execution, not credentials.
-
----
-
-# 33. Interview Relevance
-
-This project was built to strengthen Data Engineering and Data Architecture interview readiness.
-
-### SQL
-
-* joins
-* CTEs
-* window functions
-* aggregations
-* incremental extraction
-* query optimization
-
-### Python
-
-* database connectivity
-* batch processing
-* file processing
-* exception handling
-* logging
-* memory considerations
-
-### Airflow
-
-* DAG design
-* task dependencies
-* scheduling
-* retries
-* failure handling
-* idempotency
-* orchestration vs transformation
-
-### GCP
-
-* GCS
-* Pub/Sub
-* IAM
-* service accounts
-* Workload Identity Federation
-* event-driven architecture
-
-### Snowflake
-
-* warehouses
-* databases
-* schemas
-* stages
-* file formats
-* Snowpipe
-* Streams
-* Tasks
-* micro-partitions
-* RBAC
-* performance and cost
-
-### dbt
-
-* models
-* sources
-* tests
-* macros
-* materializations
-* snapshots
-* incremental models
-* lineage
-* SCD Type 2
-
-### Terraform
-
-* providers
-* resources
-* variables
-* state
-* remote backends
-* state locking
-* environment management
-* plan vs apply
-
-### CI/CD
-
-* pipeline stages
-* validation
-* approvals
-* environment promotion
-* secure files
-* federated authentication
-* infrastructure deployment
-
-### Production scenarios
-
-* duplicate files
-* retries
-* late-arriving data
-* schema changes
-* data-quality failures
-* incremental loads
-* CDC
-* backfills
-* replay
-* disaster recovery
-* cost optimization
-* security
-
----
-
-# 34. Key Architectural Lessons
-
-## 1. Separate responsibilities
-
-```text
-Airflow      → orchestration
-GCS          → raw storage
-Pub/Sub      → eventing
-Snowpipe     → ingestion
-Snowflake    → warehouse
-dbt          → transformation
-Terraform    → infrastructure
-Azure DevOps → deployment
-```
-
-## 2. Make pipelines observable
-
-A pipeline should prove:
-
-* expected data arrived
-* expected records arrived
-* duplicates were controlled
-* transformations succeeded
-* quality checks passed
-* downstream state is correct
-
-## 3. Design for failure
-
-Production systems must assume:
-
-```text
-network failure
-source failure
-duplicate file
-partial load
-schema change
-bad data
-downstream outage
-expired credentials
-```
-
-## 4. Infrastructure should be reproducible
-
-Terraform provides repeatable infrastructure deployment across environments.
-
-## 5. Security belongs in the architecture
-
-The project demonstrates:
-
-```text
-WIF
-IAM
-secure files
-private-key authentication
-environment isolation
-secret exclusion from Git
-```
-
-## 6. Batch, CDC and SCD2 solve different problems
-
-```text
-Batch / Incremental
-→ process new or changed data
-
-CDC
-→ capture source changes
-
-Snapshot / SCD2
-→ preserve historical versions
-```
-
-Understanding this distinction is important for Data Architecture decisions.
-
----
-
-# 35. Project Completion Summary
-
-The project evolved from a simple SQL extraction exercise into a complete production-style Data Engineering platform:
-
-```text
-SQL Server
-    ↓
-Python
-    ↓
-Airflow
-    ↓
-GCS
-    ↓
-Pub/Sub
-    ↓
-Snowpipe
-    ↓
-Snowflake LANDING
-    ↓
-dbt PREPARE
-    ↓
-dbt NORMALIZE
-    ↓
-dbt SCHEMATIZE
-    ↓
-dbt MARKETPLACE
-    ↓
-BI
-```
-
-With supporting capabilities:
-
-```text
-Terraform
-    ↓
-Infrastructure as Code
-
-Azure DevOps
-    ↓
-CI/CD
-
-WIF + IAM
-    ↓
-Secure cloud authentication
-
-dbt Tests
-    ↓
-Data Quality
-
-Snapshots
-    ↓
-Historical Tracking
-
-Streams + Tasks
-    ↓
-CDC
-
-Monitoring / Logging
-    ↓
-Operational Reliability
-```
-
----
-
-# 36. Final Project Status
-
-```text
-╔══════════════════════════════════════════════╗
-║        END-TO-END PROJECT COMPLETE           ║
-╠══════════════════════════════════════════════╣
-║ SQL Server / Python                  ✅       ║
-║ GCS                                  ✅       ║
-║ Airflow                              ✅       ║
-║ Pub/Sub                              ✅       ║
-║ Snowpipe                             ✅       ║
-║ Snowflake                            ✅       ║
-║ dbt                                  ✅       ║
-║ Dimensional Modeling                 ✅       ║
-║ Data Quality                         ✅       ║
-║ dbt Snapshots / SCD2                 ✅       ║
-║ Snowflake Streams / Tasks / CDC      ✅       ║
-║ Terraform                            ✅       ║
-║ Remote Terraform State               ✅       ║
-║ Azure DevOps CI/CD                   ✅       ║
-║ Workload Identity Federation         ✅       ║
-║ Security Practices                   ✅       ║
-║ Retry / Idempotency Patterns         ✅       ║
-║ Monitoring Foundation                🟡       ║
-║ Advanced Incremental Edge Cases      🟡       ║
-║ Enterprise 24x7 Operations           Concept  ║
-╚══════════════════════════════════════════════╝
-```
-
-The project is considered **complete as a Data Engineering learning and portfolio implementation**.
-
-The remaining 🟡 areas represent deeper production-hardening topics rather than missing core pipeline components.
-
----
-
-# 37. Repository
+# 40. Repository
 
 GitHub:
 
@@ -1841,11 +2440,11 @@ main
 
 ---
 
-# 38. Disclaimer
+# 41. Disclaimer
 
-This is a personal Data Engineering learning and portfolio project using the AdventureWorks sample dataset.
+This is a personal Data Engineering portfolio project using the AdventureWorks sample dataset.
 
-The architecture is intentionally designed to simulate enterprise Data Engineering practices and demonstrate hands-on understanding of:
+The project demonstrates hands-on implementation of:
 
 * data ingestion
 * orchestration
@@ -1853,13 +2452,16 @@ The architecture is intentionally designed to simulate enterprise Data Engineeri
 * event-driven architecture
 * Snowflake
 * dbt
+* dimensional modeling
+* data quality
 * CDC
 * SCD Type 2
 * Infrastructure as Code
 * CI/CD
-* security
-* data quality
-* reliability
-* production architecture
+* cloud authentication
+* reliability patterns
+* scalability considerations
 
-It should not be interpreted as a production system serving real customer data or as evidence of operating a production environment at enterprise scale.
+No real customer or production business data is used.
+
+The architecture is intentionally designed to demonstrate how a modern Data Engineering platform can be structured and operated, while clearly distinguishing implemented capabilities from areas that would require further engineering for true enterprise-scale production use.
