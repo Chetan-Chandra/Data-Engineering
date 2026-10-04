@@ -1,4 +1,4 @@
-# this is a comment 
+# this is a comment  # this is a comment
 from airflow.hooks.base import BaseHook
 from airflow.exceptions import AirflowException
 
