@@ -2365,16 +2365,17 @@ Recommended final gallery:
 ```
 02-airflow-success
 ```
+Images\image-17.png
 
-![airflow-dag](image-17.png)
+![Airflow DAG](Images/image-17.png)
 
-![airflow-connections](image-20.png)
+![Airflow Connections](Images/image-20.png)
 
-![airflow-graph](image-18.png)
+![Airflow Graph](Images/image-18.png)
 
-![airflow-log](image-19.png)
+![Airflow Log](Images/image-19.png)
 
-![airflow-xcom](image-21.png)
+![Airflow Xcom](Images/image-21.png)
 
 03-gcs-raw-ingestion.png
 04-pubsub-event.png
