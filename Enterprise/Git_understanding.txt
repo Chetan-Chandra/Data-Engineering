@@ -1,0 +1,857 @@
+Yes — there are a few different Git concepts mixed together here. Once you separate them, `git diff` becomes much easier to understand.
+
+---
+
+## Step 1 — What does "checked out to a commit" mean?
+
+When I say:
+
+> "The pipeline agent checks out commit `ABC123`"
+
+I mean:
+
+> **Git makes the files in the working folder look exactly like they looked at commit `ABC123`.**
+
+For example, suppose your history is:
+
+```text
+A ─── B ─── C ─── D ─── E
+              ↑
+          commit C
+```
+
+At commit C, your project might contain:
+
+```text
+DAGS/
+    employee.py
+    customer.py
+```
+
+Then commit D adds:
+
+```text
+DAGS/
+    employee.py
+    customer.py
+    product.py
+```
+
+If the pipeline checks out **C**, the agent gets:
+
+```text
+DAGS/
+    employee.py
+    customer.py
+```
+
+It does **not** get `product.py`.
+
+So:
+
+> **Checkout = make my working directory represent a particular Git version/commit.**
+
+This is exactly why `Build.SourceVersion` is important.
+
+```text
+Build.SourceVersion
+        ↓
+commit ABC123
+        ↓
+Git checkout
+        ↓
+$(Build.SourcesDirectory)
+        ↓
+files as they existed at ABC123
+```
+
+---
+
+# Step 2 — Is `git checkout` the same as `git switch`?
+
+**Not exactly.**
+
+They overlap, but modern Git separated the responsibilities.
+
+### `git switch`
+
+Primarily used for **changing branches**.
+
+```powershell
+git switch main
+```
+
+means:
+
+> "Move me to the `main` branch."
+
+Or:
+
+```powershell
+git switch feature/dbt
+```
+
+means:
+
+> "Move me to the `feature/dbt` branch."
+
+You can also use:
+
+```powershell
+git switch --detach f7827ed
+```
+
+to move to a particular commit without being on a branch.
+
+---
+
+### `git checkout`
+
+`checkout` is the older, more general command.
+
+For example:
+
+```powershell
+git checkout main
+```
+
+changes to the `main` branch.
+
+And:
+
+```powershell
+git checkout f7827ed
+```
+
+checks out a particular commit.
+
+It can also restore files, which is one reason Git introduced `switch` and `restore` to make the commands clearer.
+
+### Modern Git mental model
+
+Think:
+
+```text
+git switch
+    ↓
+branches
+
+git restore
+    ↓
+files
+
+git checkout
+    ↓
+older/general command that can do both
+```
+
+So when Azure DevOps says **"checkout the commit"**, don't interpret that as:
+
+> "Azure is running `git switch`."
+
+It means:
+
+> **"The agent is making its working directory represent the required Git commit."**
+
+---
+
+# Step 3 — Now let's understand your command
+
+You have:
+
+```bash
+git diff --name-status -M $BASE_COMMIT HEAD | grep -E '\sDAGS/' || true
+```
+
+Let's break it apart.
+
+### `git diff`
+
+Compares two Git states.
+
+In your command:
+
+```text
+BASE_COMMIT
+     ↓
+     │
+     │ compare
+     ▼
+   HEAD
+```
+
+---
+
+### `--name-status`
+
+Instead of showing the actual contents of the changes, it shows:
+
+**what files changed + what happened to them.**
+
+For example:
+
+```text
+M       DAGS/customer.py
+A       DAGS/product.py
+D       DAGS/employee.py
+```
+
+Where:
+
+```text
+M = Modified
+A = Added
+D = Deleted
+R = Renamed
+```
+
+---
+
+### `-M`
+
+This tells Git:
+
+> "Try to detect renamed files."
+
+For example, without rename detection you might see:
+
+```text
+D       DAGS/old_name.py
+A       DAGS/new_name.py
+```
+
+With:
+
+```bash
+-M
+```
+
+Git may recognize:
+
+```text
+R100    DAGS/old_name.py    DAGS/new_name.py
+```
+
+This is particularly relevant to your **Airflow controlled deployment** because you previously had a DAG rename:
+
+```text
+ebs_dag01.py → ebs_dag02.py
+```
+
+---
+
+### `$BASE_COMMIT`
+
+This is a variable containing a commit ID.
+
+For example:
+
+```text
+BASE_COMMIT=f7827ed
+```
+
+---
+
+### `HEAD`
+
+`HEAD` means:
+
+> **The commit your current Git checkout is currently pointing to.**
+
+If you're on:
+
+```text
+feature/dag-change
+```
+
+then `HEAD` represents the latest commit on that feature branch.
+
+---
+
+### `grep -E '\sDAGS/'`
+
+This filters the output.
+
+It says roughly:
+
+> "Only show lines that contain `DAGS/`."
+
+So if the diff contains:
+
+```text
+M       README.md
+M       terraform/main.tf
+M       DAGS/customer.py
+D       DAGS/employee.py
+```
+
+the `grep` leaves:
+
+```text
+M       DAGS/customer.py
+D       DAGS/employee.py
+```
+
+---
+
+### `|| true`
+
+This is important in your Azure pipeline.
+
+`grep` returns a non-zero exit code when it finds **nothing**.
+
+Without:
+
+```bash
+|| true
+```
+
+your pipeline could potentially interpret:
+
+> "grep found nothing"
+
+as:
+
+> "the command failed."
+
+`|| true` basically says:
+
+> **"Even if grep finds nothing, don't treat that as a pipeline failure."**
+
+---
+
+# Step 4 — How do you test this locally?
+
+Because you're using **PowerShell**, don't copy the `grep` version directly.
+
+First, let's test the Git portion.
+
+Suppose you're currently on your feature branch.
+
+Run:
+
+```powershell
+git branch --show-current
+```
+
+You might get:
+
+```text
+feature/dag-change
+```
+
+Now find the common ancestor between your feature branch and `main`:
+
+```powershell
+git merge-base main HEAD
+```
+
+Suppose it returns:
+
+```text
+f7827ed123456789abcdef...
+```
+
+That is a good candidate for:
+
+```text
+BASE_COMMIT
+```
+
+Now run:
+
+```powershell
+git diff --name-status -M $(git merge-base main HEAD) HEAD
+```
+
+You might get:
+
+```text
+M       airflow-practice/airflow-controlled-pipeline.yml
+M       airflow-practice/DAGS/Systems/EBS/ebs_dag.py
+A       airflow-practice/DAGS/Systems/EBS/ebs_dag02.py
+```
+
+That is already enough to test the important part.
+
+---
+
+# Step 5 — Test only DAG changes in PowerShell
+
+Your original pipeline command uses Linux `grep`.
+
+The PowerShell equivalent is:
+
+```powershell
+git diff --name-status -M $(git merge-base main HEAD) HEAD | Select-String 'DAGS/'
+```
+
+If there are DAG changes:
+
+```text
+M       airflow-practice/DAGS/Systems/EBS/ebs_dag.py
+A       airflow-practice/DAGS/Systems/EBS/ebs_dag02.py
+```
+
+If there are no DAG changes, you'll get no matching output.
+
+That's perfectly normal.
+
+### If you want the exact Linux command
+
+If you open **Git Bash**, you can use essentially your original command:
+
+```bash
+BASE_COMMIT=$(git merge-base main HEAD)
+git diff --name-status -M $BASE_COMMIT HEAD | grep -E '\sDAGS/' || true
+```
+
+That is probably the best way to test the exact command that will run on a Linux Azure agent.
+
+---
+
+# Step 6 — Now the really important part: which branch should `git diff` run on?
+
+This depends on **which form of `git diff` you're using**.
+
+There are three different situations you need to understand.
+
+---
+
+## Situation A — `git diff` with no commits
+
+```powershell
+git diff
+```
+
+This compares:
+
+```text
+Working directory
+        ↓
+vs
+Staging area
+```
+
+So:
+
+```text
+You edit file
+     ↓
+git diff
+     ↓
+shows your unstaged changes
+```
+
+If you then do:
+
+```powershell
+git add .
+```
+
+you have moved the changes into the staging area.
+
+Now:
+
+```powershell
+git diff
+```
+
+will often show:
+
+```text
+nothing
+```
+
+### Why?
+
+Because:
+
+```text
+Working directory
+       =
+Staging area
+```
+
+The changes are staged.
+
+To see staged changes:
+
+```powershell
+git diff --staged
+```
+
+or:
+
+```powershell
+git diff --cached
+```
+
+So remember:
+
+```text
+git diff
+        → unstaged changes
+
+git diff --staged
+        → staged changes
+```
+
+---
+
+# Step 7 — What happens after `git commit`?
+
+Suppose you do:
+
+```powershell
+git add .
+git commit -m "Add DAG"
+```
+
+Now:
+
+```powershell
+git diff
+```
+
+will normally be blank.
+
+Why?
+
+Because your working directory matches the current commit.
+
+```text
+Working directory
+        =
+HEAD
+```
+
+But the changes haven't disappeared.
+
+They're now **part of the commit**.
+
+To see what that commit changed:
+
+```powershell
+git show --stat HEAD
+```
+
+or:
+
+```powershell
+git diff HEAD~1 HEAD
+```
+
+This compares:
+
+```text
+previous commit
+      ↓
+      vs
+current commit
+```
+
+---
+
+# Step 8 — This is different from YOUR pipeline command
+
+Your pipeline command is:
+
+```bash
+git diff --name-status -M $BASE_COMMIT HEAD
+```
+
+Notice that you're explicitly giving Git **two commits**.
+
+Therefore, it does **not care whether your working directory is clean or whether you have run `git add`**.
+
+It compares:
+
+```text
+COMMIT A
+   ↓
+   │
+   │ git diff
+   │
+   ↓
+COMMIT B
+```
+
+This is very important.
+
+For example:
+
+```text
+main:
+A ── B ── C
+          \
+           D ── E
+                ↑
+              HEAD
+```
+
+If:
+
+```text
+BASE_COMMIT = C
+HEAD        = E
+```
+
+then:
+
+```bash
+git diff C E
+```
+
+shows everything that changed between C and E.
+
+It doesn't matter whether you have:
+
+```text
+git add .
+```
+
+or:
+
+```text
+git commit
+```
+
+or:
+
+```text
+working tree clean
+```
+
+because you're comparing **commits**, not your working directory.
+
+---
+
+# Step 9 — So which branch should YOUR command run on?
+
+For your controlled deployment scenario, you normally want:
+
+```text
+main
+  │
+  │ branch
+  ▼
+feature branch
+  │
+  │ changes
+  ▼
+HEAD
+```
+
+You run the comparison **while HEAD is on the feature branch**.
+
+For example:
+
+```powershell
+git switch feature/dag-change
+```
+
+Then:
+
+```powershell
+git diff --name-status -M $(git merge-base main HEAD) HEAD
+```
+
+This means:
+
+> **"Show me all file changes introduced by my feature branch since it diverged from main."**
+
+That's exactly the kind of comparison you need for a deployment pipeline.
+
+---
+
+# Step 10 — Why use `merge-base`?
+
+This is an important Data Engineer / DevOps concept.
+
+Suppose:
+
+```text
+                  D ── E ── F   ← feature
+                 /
+A ── B ── C
+           ↑
+          main
+```
+
+Actually, if `main` moved after the feature branched:
+
+```text
+A ── B ── C ── D ── E          ← main
+          \
+           X ── Y ── Z          ← feature
+```
+
+The correct comparison point is:
+
+```text
+           C
+          / \
+       main feature
+```
+
+`git merge-base main HEAD` finds that common ancestor.
+
+So:
+
+```bash
+git merge-base main HEAD
+```
+
+means:
+
+> **"Find the point where my feature branch and main last shared the same history."**
+
+Then:
+
+```bash
+git diff --name-status -M $(git merge-base main HEAD) HEAD
+```
+
+means:
+
+> **"Show me everything my feature branch changed since it split from main."**
+
+That is a very useful command to understand.
+
+---
+
+# Step 11 — Your `git diff` cheat sheet
+
+| Command                      | What it compares                    |
+| ---------------------------- | ----------------------------------- |
+| `git diff`                   | Working files vs staging            |
+| `git diff --staged`          | Staging vs HEAD                     |
+| `git diff HEAD`              | Working files + staging vs HEAD     |
+| `git diff A B`               | Commit A vs commit B                |
+| `git diff HEAD~1 HEAD`       | Previous commit vs current commit   |
+| `git diff --name-only A B`   | Only changed filenames              |
+| `git diff --name-status A B` | Filename + A/M/D/R                  |
+| `git diff --stat A B`        | Summary of changes                  |
+| `git diff -M A B`            | Detect renames                      |
+| `git show HEAD`              | Show current commit and its changes |
+
+And specifically for **your Airflow controlled deployment**:
+
+```bash
+git diff --name-status -M $(git merge-base main HEAD) HEAD
+```
+
+is one of the most useful commands to understand.
+
+---
+
+# Step 12 — `name-only` vs `name-status`
+
+These are also worth remembering.
+
+### `--name-only`
+
+```powershell
+git diff --name-only A B
+```
+
+Output:
+
+```text
+DAGS/customer.py
+DAGS/employee.py
+terraform/main.tf
+README.md
+```
+
+It tells you:
+
+> **Which files changed?**
+
+---
+
+### `--name-status`
+
+```powershell
+git diff --name-status A B
+```
+
+Output:
+
+```text
+M       DAGS/customer.py
+D       DAGS/employee.py
+A       terraform/main.tf
+M       README.md
+```
+
+It tells you:
+
+> **Which files changed AND what happened to them?**
+
+For your deployment logic, **`--name-status` is better** because you need to distinguish:
+
+```text
+A → deploy
+M → deploy/update
+D → delete from target
+R → rename handling
+```
+
+That's exactly why your controlled deployment YAML uses it.
+
+---
+
+## The most important distinction to remember
+
+Don't think:
+
+> "`git diff` only works before commit."
+
+Instead think:
+
+```text
+git diff
+    ↓
+working tree vs staging
+
+git diff --staged
+    ↓
+staging vs HEAD
+
+git diff A B
+    ↓
+commit A vs commit B
+```
+
+So after:
+
+```powershell
+git add .
+git commit -m "Add DAG"
+```
+
+this being blank:
+
+```powershell
+git diff
+```
+
+is **normal**.
+
+But this can still show the committed change:
+
+```powershell
+git diff HEAD~1 HEAD
+```
+
+And your pipeline-style comparison:
+
+```powershell
+git diff --name-status -M $(git merge-base main HEAD) HEAD
+```
+
+will show the feature branch's changes relative to its common ancestor with `main`, **even though everything has already been committed**.
+
+That last point is the key to understanding why this works in your Azure DevOps deployment pipeline.

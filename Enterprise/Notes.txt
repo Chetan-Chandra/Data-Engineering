@@ -1,0 +1,1247 @@
+# Important Key Points to understand:
+
+Build.SourcesDirectory:
+
+The local path on the agent where your source code files are downloaded. For example: c:\agent_work\1\s.
+On self-hosted agents, new build pipelines update only the changed files. For more information about the agent directory structure, see Agent directory structure.
+Important note: If you check out only one Git repository, this path is the exact path to the code. 
+If you check out multiple repositories, it reverts to its default value, which is $(Pipeline.Workspace)/s, even if the self (primary) repository is checked out to a custom path different from its multi-checkout default path $(Pipeline.Workspace)/s/<RepoName> (in this respect, the variable differs from the behavior of the Build.Repository.LocalPath variable).
+This variable is agent-scoped, and can be used as an environment variable in a script and as a parameter in a build task. 
+It can't be used as part of the build number or as a version control tag.
+
+Absolutely. For your **Data Engineering practice project**, you don't need to memorize every Git command or every Azure DevOps variable. You need the commands and variables that help you understand **code versioning → branches → PRs → pipeline triggers → agent workspace → deployment**.
+
+I would keep the following as your **Git + Azure DevOps Pipeline cheat sheet**.
+
+---
+
+# Git + Azure DevOps Pipeline — Data Engineer Cheat Sheet
+
+## Part 1 — Git commands you should know
+
+---
+
+## Step 1 — Understand where you are
+
+### `git status`
+
+```powershell
+git status
+```
+
+**What it does:** Shows the current state of your local repository.
+
+It tells you:
+
+* Which branch you're on
+* Whether you're ahead/behind the remote
+* Which files changed
+* Which files are staged
+* Which files are untracked
+
+**Think:**
+
+> "What is happening in my Git repository right now?"
+
+---
+
+### `git branch`
+
+```powershell
+git branch
+```
+
+Shows your local branches.
+
+```text
+* main
+  feature/dbt-pipeline
+```
+
+`*` means your current branch.
+
+---
+
+### `git branch -a`
+
+```powershell
+git branch -a
+```
+
+Shows both:
+
+* Local branches
+* Remote-tracking branches
+
+Example:
+
+```text
+* main
+  feature/dbt-pipeline
+  remotes/origin/main
+  remotes/azure/main
+```
+
+---
+
+### `git branch -vv`
+
+```powershell
+git branch -vv
+```
+
+Shows which remote branch each local branch is tracking.
+
+Very useful for understanding:
+
+```text
+local branch → remote branch
+```
+
+---
+
+# Part 2 — Understanding commits
+
+---
+
+## Step 2 — Create a commit
+
+### `git add`
+
+```powershell
+git add .
+```
+
+Moves changes into the **staging area**.
+
+Think:
+
+```text
+Changed files
+     ↓
+git add
+     ↓
+Staging area
+```
+
+You are saying:
+
+> "These are the changes I want to include in my next commit."
+
+---
+
+### `git commit`
+
+```powershell
+git commit -m "Add employee ingestion pipeline"
+```
+
+Creates a permanent Git checkpoint.
+
+Think:
+
+```text
+Working files
+     ↓
+git add
+     ↓
+Staging
+     ↓
+git commit
+     ↓
+Commit
+```
+
+---
+
+### `git log`
+
+```powershell
+git log --oneline
+```
+
+Shows commit history.
+
+Example:
+
+```text
+f7827ed  Merged PR 21: Ter apply
+6bcbcf9  Merged PR 15: Dbt secure file
+2d769eb  Merged PR 13: DBT
+```
+
+For your practice project, this is very important because **every pipeline run ultimately works against a particular Git commit**.
+
+---
+
+### `git show`
+
+```powershell
+git show f7827ed
+```
+
+Shows what happened in a particular commit.
+
+Useful when asking:
+
+> "What exactly changed in this commit?"
+
+---
+
+### `git diff`
+
+```powershell
+git diff
+```
+
+Shows changes that have **not yet been staged**.
+
+Very useful before committing.
+
+---
+
+### `git diff --stat`
+
+```powershell
+git diff --stat
+```
+
+Shows a summary instead of the entire changes.
+
+Example:
+
+```text
+airflow-controlled-pipeline.yml | 20 +++++---
+README.md                       | 10 ++++
+```
+
+---
+
+# Part 3 — Branches
+
+---
+
+## Step 3 — Create a feature branch
+
+```powershell
+git switch -c feature/dbt-secure-file
+```
+
+Creates a new branch and switches to it.
+
+Think:
+
+```text
+main
+ │
+ └── feature/dbt-secure-file
+```
+
+You work safely without directly modifying `main`.
+
+---
+
+### Switch branch
+
+```powershell
+git switch main
+```
+
+or:
+
+```powershell
+git switch feature/dbt-secure-file
+```
+
+---
+
+### Delete a local branch
+
+```powershell
+git branch -d feature/dbt-secure-file
+```
+
+Use after the branch has been merged.
+
+---
+
+# Part 4 — Remotes
+
+---
+
+## Step 4 — See your remotes
+
+```powershell
+git remote -v
+```
+
+For your project:
+
+```text
+origin → GitHub
+azure  → Azure DevOps
+```
+
+This is particularly important for your two-remote setup.
+
+---
+
+### Add a remote
+
+```powershell
+git remote add origin <URL>
+```
+
+---
+
+### Change a remote URL
+
+```powershell
+git remote set-url origin <URL>
+```
+
+You recently used this.
+
+---
+
+### Remove a remote
+
+```powershell
+git remote remove origin
+```
+
+Notice:
+
+```text
+origin
+```
+
+is the **remote name**, not the URL.
+
+---
+
+# Part 5 — Fetch vs Pull
+
+---
+
+## Step 5 — `git fetch`
+
+```powershell
+git fetch origin
+```
+
+Downloads information about changes from GitHub but **doesn't automatically change your current files**.
+
+Think:
+
+> "Tell me what changed on the remote."
+
+---
+
+## `git pull`
+
+```powershell
+git pull origin main
+```
+
+Usually means:
+
+```text
+git fetch
++
+integrate the fetched changes
+```
+
+Think:
+
+> "Get the latest version from the remote and integrate it into my current branch."
+
+For your project:
+
+```powershell
+git pull origin main
+```
+
+gets GitHub's `main`.
+
+```powershell
+git pull azure main
+```
+
+gets Azure's `main`.
+
+---
+
+# Part 6 — Push
+
+---
+
+## Step 6 — Push your branch
+
+```powershell
+git push origin feature/my-feature
+```
+
+Uploads your local branch to GitHub.
+
+For Azure:
+
+```powershell
+git push azure feature/my-feature
+```
+
+Uploads your feature branch to Azure DevOps.
+
+Then create a PR.
+
+---
+
+### First push of a new branch
+
+```powershell
+git push -u origin feature/my-feature
+```
+
+`-u` establishes the upstream relationship.
+
+After that, you can usually just use:
+
+```powershell
+git push
+```
+
+---
+
+# Part 7 — PR workflow
+
+For your Azure project, understand this workflow extremely well:
+
+```text
+main
+ │
+ ├── feature branch
+ │
+ │   code changes
+ │
+ │   git add
+ │   git commit
+ │   git push
+ │
+ ▼
+Azure DevOps
+ │
+ ▼
+Pull Request
+ │
+ ▼
+Pipeline validation
+ │
+ ▼
+Review / approval
+ │
+ ▼
+Merge
+ │
+ ▼
+main
+```
+
+Because your Azure `main` is protected, this is more important than knowing obscure Git commands.
+
+---
+
+# Part 8 — Undoing mistakes
+
+---
+
+## Step 7 — Unstage a file
+
+```powershell
+git restore --staged filename
+```
+
+Means:
+
+> "I don't want this file included in my next commit."
+
+---
+
+## Discard local changes
+
+```powershell
+git restore filename
+```
+
+**Danger:** This removes your uncommitted changes to that file.
+
+---
+
+## See previous commits
+
+```powershell
+git log --oneline
+```
+
+---
+
+## Move to another commit temporarily
+
+```powershell
+git checkout <commit-id>
+```
+
+or modern Git:
+
+```powershell
+git switch --detach <commit-id>
+```
+
+This is more advanced; understand the concept rather than memorizing it.
+
+---
+
+# Part 9 — Very important repository concepts
+
+These aren't commands, but you should understand them.
+
+### Working tree
+
+Your actual project files:
+
+```text
+airflow/
+DBT_Practice/
+terraform/
+python-ingestion/
+```
+
+### Staging area
+
+Changes selected for the next commit.
+
+### Commit
+
+A snapshot/checkpoint of the repository.
+
+### Branch
+
+An independent line of development.
+
+### Remote
+
+A named connection to another Git repository.
+
+Example:
+
+```text
+origin → GitHub
+azure  → Azure DevOps
+```
+
+### HEAD
+
+The commit/branch you're currently working from.
+
+### `.git`
+
+The hidden directory containing the repository's Git metadata/history/configuration.
+
+**Do not casually delete `.git`.**
+
+You learned why this matters earlier. 🙂
+
+---
+
+# Part 10 — Git commands I consider "must know" for you
+
+If you want the **short list to memorize**, it's this:
+
+```powershell
+git status
+git branch
+git switch -c feature/name
+git switch main
+git add .
+git commit -m "message"
+git log --oneline
+git diff
+git fetch origin
+git pull origin main
+git push origin main
+git push origin feature/name
+git remote -v
+git remote set-url origin <url>
+git restore <file>
+git restore --staged <file>
+```
+
+That's enough for **90%+ of your normal Data Engineering Git work**.
+
+---
+
+# Azure DevOps Pipeline Variables
+
+Now the second important part.
+
+Think of an Azure DevOps pipeline like this:
+
+```text
+Git repository
+      ↓
+Pipeline triggered
+      ↓
+Azure DevOps chooses a commit
+      ↓
+Linux build agent
+      ↓
+Repository checked out
+      ↓
+Build.SourcesDirectory
+      ↓
+Pipeline tasks
+      ↓
+Tests / Build / Deployment
+```
+
+Predefined variables give the pipeline information about this run.
+
+---
+
+# Part 11 — `Build.SourceVersion`
+
+```text
+$(Build.SourceVersion)
+```
+
+### Meaning
+
+The **commit ID that this pipeline run is building**.
+
+Example:
+
+```text
+f7827ed123456789...
+```
+
+### Why you care
+
+This answers:
+
+> "Which exact Git commit is this pipeline running?"
+
+This is probably the **single most important Git-related pipeline variable** for you.
+
+---
+
+# Part 12 — `Build.SourceBranch`
+
+```text
+$(Build.SourceBranch)
+```
+
+Tells you which branch/ref triggered the pipeline.
+
+Example:
+
+```text
+refs/heads/main
+```
+
+For a feature branch:
+
+```text
+refs/heads/feature/dbt-secure-file
+```
+
+Think:
+
+> "Which branch triggered this pipeline?"
+
+---
+
+# Part 13 — `Build.SourceBranchName`
+
+```text
+$(Build.SourceBranchName)
+```
+
+Gives the simpler branch name.
+
+Example:
+
+```text
+main
+```
+
+instead of:
+
+```text
+refs/heads/main
+```
+
+---
+
+# Part 14 — `Build.Repository.Name`
+
+```text
+$(Build.Repository.Name)
+```
+
+Tells you which repository the pipeline is working with.
+
+Example:
+
+```text
+data-enginnering-practice
+```
+
+Think:
+
+> "Which repository triggered this pipeline?"
+
+---
+
+# Part 15 — `Build.Repository.ID`
+
+```text
+$(Build.Repository.ID)
+```
+
+The unique identifier of the repository.
+
+You generally don't need this every day, but it's useful in scripts/API-based automation.
+
+---
+
+# Part 16 — `Build.Repository.Uri`
+
+```text
+$(Build.Repository.Uri)
+```
+
+The repository URL.
+
+Think:
+
+> "Where is this repository located?"
+
+---
+
+# Part 17 — `Build.SourcesDirectory`
+
+```text
+$(Build.SourcesDirectory)
+```
+
+This is **where the checked-out source code exists on the build agent**.
+
+For example:
+
+```text
+/agent/_work/1/s
+```
+
+Think:
+
+> "Where did Azure DevOps put my project files?"
+
+This is extremely important for your pipeline scripts.
+
+For example:
+
+```yaml
+- script: |
+    ls $(Build.SourcesDirectory)
+```
+
+---
+
+# Part 18 — `Build.ArtifactStagingDirectory`
+
+```text
+$(Build.ArtifactStagingDirectory)
+```
+
+A temporary folder where you prepare files that you want to publish as pipeline artifacts.
+
+Think:
+
+```text
+Source code
+    ↓
+Build
+    ↓
+Prepare deployment files
+    ↓
+ArtifactStagingDirectory
+    ↓
+Publish artifact
+```
+
+---
+
+# Part 19 — `Build.ArtifactStagingDirectory` vs `Build.SourcesDirectory`
+
+Very important distinction:
+
+```text
+Build.SourcesDirectory
+        ↓
+Your source code
+```
+
+while:
+
+```text
+Build.ArtifactStagingDirectory
+        ↓
+Files prepared to become an artifact
+```
+
+---
+
+# Part 20 — `Pipeline.Workspace`
+
+```text
+$(Pipeline.Workspace)
+```
+
+The main workspace allocated to the pipeline on the agent.
+
+Think:
+
+> "The main working area available to this pipeline run."
+
+It can contain:
+
+```text
+sources
+artifacts
+other pipeline resources
+```
+
+---
+
+# Part 21 — `Agent.BuildDirectory`
+
+```text
+$(Agent.BuildDirectory)
+```
+
+The build working directory on the agent.
+
+For example:
+
+```text
+/agent/_work/1
+```
+
+Conceptually:
+
+```text
+Agent.BuildDirectory
+        │
+        ├── s       → source
+        ├── a       → artifacts
+        └── other pipeline files
+```
+
+You don't need to memorize the exact physical structure.
+
+---
+
+# Part 22 — `Build.BuildId`
+
+```text
+$(Build.BuildId)
+```
+
+Unique ID for the pipeline run.
+
+Example:
+
+```text
+12345
+```
+
+Think:
+
+> "Which pipeline run is this?"
+
+This is different from the Git commit ID.
+
+```text
+Build.BuildId       → pipeline run
+Build.SourceVersion → Git commit
+```
+
+---
+
+# Part 23 — `Build.BuildNumber`
+
+```text
+$(Build.BuildNumber)
+```
+
+The human-readable build/run number.
+
+Example:
+
+```text
+20261007.3
+```
+
+Useful for identifying pipeline runs and artifacts.
+
+---
+
+# Part 24 — `Build.DefinitionName`
+
+```text
+$(Build.DefinitionName)
+```
+
+The name of the pipeline.
+
+For example:
+
+```text
+CDP Airflow Controlled Deployment
+```
+
+Think:
+
+> "Which pipeline is running?"
+
+---
+
+# Part 25 — `Build.RequestedFor`
+
+```text
+$(Build.RequestedFor)
+```
+
+The user who requested/triggered the build.
+
+Useful for notifications and audit information.
+
+---
+
+# Part 26 — `Build.Reason`
+
+```text
+$(Build.Reason)
+```
+
+Tells you **why the pipeline started**.
+
+Examples include:
+
+```text
+IndividualCI
+BatchedCI
+PullRequest
+Manual
+Schedule
+```
+
+This is particularly useful for your controlled deployment pipelines.
+
+For example:
+
+```yaml
+- script: |
+    echo "Pipeline reason: $(Build.Reason)"
+```
+
+You can distinguish:
+
+```text
+PR validation
+```
+
+from:
+
+```text
+main branch CI
+```
+
+or:
+
+```text
+manual execution
+```
+
+---
+
+# Part 27 — `System.PullRequest.SourceBranch`
+
+Important when running a **PR pipeline**.
+
+```text
+$(System.PullRequest.SourceBranch)
+```
+
+Tells you the source branch of the PR.
+
+Example:
+
+```text
+refs/heads/feature/dbt-secure-file
+```
+
+---
+
+# Part 28 — `System.PullRequest.TargetBranch`
+
+```text
+$(System.PullRequest.TargetBranch)
+```
+
+Tells you where the PR is trying to merge.
+
+For your project:
+
+```text
+refs/heads/main
+```
+
+So:
+
+```text
+feature/dbt-secure-file
+          │
+          │ PR
+          ▼
+        main
+```
+
+---
+
+# Part 29 — `System.PullRequest.PullRequestId`
+
+```text
+$(System.PullRequest.PullRequestId)
+```
+
+The Azure DevOps PR number/ID.
+
+Useful when scripts need to know:
+
+> "Which PR caused this validation?"
+
+---
+
+# Part 30 — `Agent.OS`
+
+```text
+$(Agent.OS)
+```
+
+Tells you the operating system of the build agent.
+
+Example:
+
+```text
+Linux
+```
+
+or:
+
+```text
+Windows_NT
+```
+
+Useful when your scripts behave differently on Linux vs Windows.
+
+---
+
+# Part 31 — `Agent.OSArchitecture`
+
+```text
+$(Agent.OSArchitecture)
+```
+
+Tells you the processor architecture.
+
+For example:
+
+```text
+X64
+```
+
+Useful when dealing with binaries/tools.
+
+---
+
+# Part 32 — `Agent.Name`
+
+```text
+$(Agent.Name)
+```
+
+The name of the agent running the job.
+
+Usually useful for troubleshooting.
+
+---
+
+# Part 33 — `Agent.JobName`
+
+```text
+$(Agent.JobName)
+```
+
+The name of the current job.
+
+Useful when pipelines have multiple jobs.
+
+---
+
+# The variables you should REALLY memorize
+
+For your Data Engineering work, I would prioritize these:
+
+| Variable                           | Simple meaning                        | Importance |
+| ---------------------------------- | ------------------------------------- | ---------: |
+| `Build.SourceVersion`              | **Which Git commit am I building?**   |      ⭐⭐⭐⭐⭐ |
+| `Build.SourceBranch`               | **Which branch triggered it?**        |      ⭐⭐⭐⭐⭐ |
+| `Build.SourceBranchName`           | Simple branch name                    |       ⭐⭐⭐⭐ |
+| `Build.Repository.Name`            | Which repo?                           |       ⭐⭐⭐⭐ |
+| `Build.SourcesDirectory`           | Where is my source code on the agent? |      ⭐⭐⭐⭐⭐ |
+| `Pipeline.Workspace`               | Main pipeline workspace               |       ⭐⭐⭐⭐ |
+| `Build.ArtifactStagingDirectory`   | Where do I prepare artifacts?         |       ⭐⭐⭐⭐ |
+| `Build.BuildId`                    | Which pipeline run?                   |       ⭐⭐⭐⭐ |
+| `Build.BuildNumber`                | Human-readable run number             |        ⭐⭐⭐ |
+| `Build.Reason`                     | Why did pipeline start?               |      ⭐⭐⭐⭐⭐ |
+| `Build.DefinitionName`             | Which pipeline?                       |        ⭐⭐⭐ |
+| `System.PullRequest.SourceBranch`  | PR source branch                      |      ⭐⭐⭐⭐⭐ |
+| `System.PullRequest.TargetBranch`  | PR target branch                      |      ⭐⭐⭐⭐⭐ |
+| `System.PullRequest.PullRequestId` | Which PR?                             |       ⭐⭐⭐⭐ |
+| `Agent.OS`                         | Agent OS                              |        ⭐⭐⭐ |
+| `Agent.Name`                       | Which agent?                          |         ⭐⭐ |
+
+---
+
+# The most important mental model
+
+This is what I'd want you to understand rather than just memorize variables:
+
+```text
+                    GIT
+                     │
+                     ▼
+              ┌─────────────┐
+              │ Repository  │
+              └──────┬──────┘
+                     │
+                 Branch
+                     │
+                     ▼
+              ┌─────────────┐
+              │   Commit    │
+              │  f7827ed    │
+              └──────┬──────┘
+                     │
+                     │ Pipeline triggered
+                     ▼
+          ┌─────────────────────┐
+          │   Azure DevOps      │
+          │      Pipeline       │
+          └──────────┬──────────┘
+                     │
+              Build.SourceVersion
+                     │
+                     ▼
+          ┌─────────────────────┐
+          │   Linux Agent       │
+          │                     │
+          │ /agent/_work/1/s    │
+          └──────────┬──────────┘
+                     │
+              Build.SourcesDirectory
+                     │
+                     ▼
+             Your source code
+                     │
+                     ▼
+          Build / Test / Deploy
+```
+
+And for a **PR**:
+
+```text
+feature/dbt
+     │
+     │ git push
+     ▼
+Azure DevOps
+     │
+     │ PR
+     ▼
+feature/dbt ──────────→ main
+       │
+       │
+       ▼
+PR Pipeline
+       │
+       ├── System.PullRequest.SourceBranch
+       │
+       ├── System.PullRequest.TargetBranch
+       │
+       ├── System.PullRequest.PullRequestId
+       │
+       └── Build.SourceVersion
+                 │
+                 ▼
+          Exact commit being tested
+```
+
+## Your "Data Engineer minimum set"
+
+If you're preparing for interviews, I'd learn these concepts deeply rather than trying to memorize 100 commands:
+
+**Git:**
+
+```text
+repository
+working tree
+staging
+commit
+branch
+remote
+fetch
+pull
+push
+merge
+rebase (conceptually)
+PR
+HEAD
+remote-tracking branch
+.gitignore
+```
+
+**Azure DevOps:**
+
+```text
+Repository
+Branch
+Commit
+PR
+Pipeline
+Trigger
+Agent
+Job
+Task
+Workspace
+Artifact
+Variable
+Build.SourceVersion
+Build.SourceBranch
+Build.SourcesDirectory
+Build.Reason
+System.PullRequest.SourceBranch
+System.PullRequest.TargetBranch
+```
+
+Once these are clear, your **Airflow → GCS → Snowflake → dbt → Terraform → Azure DevOps CI/CD** project becomes much easier to reason about because you'll understand exactly **which code version entered the pipeline, where it was placed, what was tested, and what was eventually deployed**.

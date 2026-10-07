@@ -1,0 +1,156 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - "*"
+
+variables:
+  - name: SANDBOX_BUCKET
+    value: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+  - name: SANDBOX_GCP_KEY_FILE
+    value: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+
+  - name: TEST_BUCKET
+    value: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+  - name: TEST_GCP_KEY_FILE
+    value: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+  - name: REGISTRY_URL_TEST
+    value: 'northamerica-northeast1-docker.pkg.dev'
+  - name: IMAGE_PATH_TEST
+    value: 'prj-n-cdp-ingestion/airflow/custom-airflow'
+
+  - name: PROD_BUCKET
+    value: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+  - name: PROD_GCP_KEY_FILE
+    value: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+
+stages:
+
+  # PR validation and unit tests
+  - stage: unit_tests
+    displayName: 'PR Validation & Unit Tests'
+    jobs:
+      - job: manual_container_test
+        displayName: 'Validate Changes & Run Tests'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - script: |
+              echo "PR: $(System.PullRequest.SourceBranch) -> $(System.PullRequest.TargetBranch)"
+
+              BASE_COMMIT=$(git rev-parse HEAD~1 >/dev/null 2>&1 && echo "HEAD~1" || echo "4b825dc642cb6eb9a060e54bf8d69288fbee4904")
+
+              echo ""
+              echo "Changed files:"
+              git diff --name-status -M $BASE_COMMIT HEAD
+
+              echo ""
+              echo "DAG changes:"
+              git diff --name-status -M $BASE_COMMIT HEAD | grep -E '\sDAGS/' || echo "None"
+
+              echo ""
+              echo "Plugin changes:"
+              git diff --name-status -M $BASE_COMMIT HEAD | grep -E '\splugins/' || echo "None"
+
+            displayName: 'Validate PR Changes'
+
+          - task: DownloadSecureFile@1
+            name: test_key
+            inputs:
+              secureFile: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+            displayName: 'Download GCP Service Account Key'
+
+          - script: |
+              cat $(test_key.secureFilePath) | docker login -u _json_key --password-stdin https://$(REGISTRY_URL_TEST)
+              docker pull $(REGISTRY_URL_TEST)/$(IMAGE_PATH_TEST):latest
+            displayName: 'Login and Pull TEST Airflow Image'
+
+          - script: |
+              docker run --rm \
+                -v $(Build.SourcesDirectory):/workspace \
+                -w /workspace \
+                -e PYTHONPATH=/workspace:/workspace/plugins \
+                -e PYTEST_ADDOPTS="-p no:cacheprovider" \
+                $(REGISTRY_URL_TEST)/$(IMAGE_PATH_TEST):latest \
+                bash -c "pip install -r requirements.txt -q && pytest Tests/ -v"
+            displayName: 'Run Pytest'
+
+
+  # Deploy to SANDBOX after merge to main
+  - stage: deploy_sandbox
+    displayName: 'Deploy Airflow to SANDBOX'
+    dependsOn: unit_tests
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+
+    jobs:
+      - deployment: sync_to_sandbox
+        displayName: 'Deploy Changed Files to SANDBOX'
+        environment: 'Sandbox - Airflow DAGS'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  fetchDepth: 0
+
+                - template: template_00.yml
+                  parameters:
+                    airflow_bucket: $(SANDBOX_BUCKET)
+                    gcp_secure_file: $(SANDBOX_GCP_KEY_FILE)
+
+
+  # Deploy to TEST after SANDBOX succeeds
+  - stage: deploy_test
+    displayName: 'Deploy Airflow to TEST'
+    dependsOn: deploy_sandbox
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+
+    jobs:
+      - deployment: sync_to_test
+        displayName: 'Deploy Changed Files to TEST'
+        environment: 'Test - Airflow DAGS'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  fetchDepth: 0
+
+                - template: template_00.yml
+                  parameters:
+                    airflow_bucket: $(TEST_BUCKET)
+                    gcp_secure_file: $(TEST_GCP_KEY_FILE)
+
+
+  # Deploy to PROD after TEST succeeds
+  - stage: deploy_prod
+    displayName: 'Deploy Airflow to PROD'
+    dependsOn: deploy_test
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+
+    jobs:
+      - deployment: sync_to_prod
+        displayName: 'Deploy Changed Files to PROD'
+        environment: 'Prod - Airflow DAGS'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  fetchDepth: 0
+
+                - template: template_00.yml
+                  parameters:
+                    airflow_bucket: $(PROD_BUCKET)
+                    gcp_secure_file: $(PROD_GCP_KEY_FILE)
