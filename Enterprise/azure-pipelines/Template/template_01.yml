@@ -1,0 +1,84 @@
+parameters:
+  - name: airflow_bucket
+    type: string
+  - name: gcp_secure_file
+    type: string
+
+steps:
+  # GCP AUTHENTICATION
+  - task: DownloadSecureFile@1
+    name: google_credentials
+    inputs:
+      secureFile: '${{ parameters.gcp_secure_file }}'
+    displayName: 'Download GCP Service Account Key'
+
+  - script: |
+      chmod 600 $(google_credentials.secureFilePath)
+      gcloud auth activate-service-account --key-file=$(google_credentials.secureFilePath)
+    displayName: 'Authenticate with GCP'
+
+  # DEPLOY CHANGED DAG AND PLUGIN FILES
+  - script: |
+      echo "Target bucket: gs://${{ parameters.airflow_bucket }}"
+
+      if git rev-parse HEAD~1 >/dev/null 2>&1; then
+        BASE_COMMIT="HEAD~1"
+      else
+        BASE_COMMIT="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+      fi
+
+      for folder in DAGS plugins
+      do
+        changes=$(git diff --name-status -M $BASE_COMMIT HEAD | grep -E "\s${folder}/" || true)
+
+        if [ -z "$changes" ]; then
+          echo "INFO: No changed files detected in $folder."
+          continue
+        fi
+
+        echo "=========================================="
+        echo "Detected Changed Files in $folder:"
+        echo "$changes"
+        echo "=========================================="
+
+        echo "$changes" | while read -r line
+        do
+          status=$(echo "$line" | awk '{print $1}')
+
+          if [[ "$status" == R* ]]; then
+            old_path=$(echo "$line" | awk '{print $2}')
+            new_path=$(echo "$line" | awk '{print $3}')
+
+            if [[ "$old_path" != ${folder}/* || "$new_path" != ${folder}/* ]]; then
+              continue
+            fi
+
+            old_relative="${old_path#${folder}/}"
+            new_relative="${new_path#${folder}/}"
+
+            echo "Renamed $folder: $old_relative -> $new_relative"
+
+            gcloud storage rm "gs://${{ parameters.airflow_bucket }}/$(echo "$folder" | tr '[:upper:]' '[:lower:]')/$old_relative" --quiet || true
+            gcloud storage cp "$(Build.SourcesDirectory)/$folder/$new_relative" "gs://${{ parameters.airflow_bucket }}/$(echo "$folder" | tr '[:upper:]' '[:lower:]')/$new_relative"
+
+          else
+            file_path=$(echo "$line" | awk '{print $2}')
+
+            if [[ "$file_path" != ${folder}/* ]]; then
+              continue
+            fi
+
+            relative_path="${file_path#${folder}/}"
+            echo "$folder status: $status | $relative_path"
+
+            target_folder=$(echo "$folder" | tr '[:upper:]' '[:lower:]')
+
+            if [[ "$status" == "D" ]]; then
+              gcloud storage rm "gs://${{ parameters.airflow_bucket }}/$target_folder/$relative_path" --quiet || true
+            elif [[ "$status" == "A" || "$status" == "M" ]]; then
+              gcloud storage cp "$(Build.SourcesDirectory)/$folder/$relative_path" "gs://${{ parameters.airflow_bucket }}/$target_folder/$relative_path"
+            fi
+          fi
+        done
+      done
+    displayName: 'Deploy Changed DAG and Plugin Files'
