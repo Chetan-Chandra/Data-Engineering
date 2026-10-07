@@ -1,0 +1,1754 @@
+Absolutely. We should **not start another generic Data Engineering course**. We should turn the pipeline you already built into a **Data Architect lab + interview Bible**.
+
+The Genpact posting itself emphasizes large-scale data architecture, data strategy, scalability, reliability, performance, cross-functional requirements, security/integrity/governance, and evaluating technologies. It also lists Databricks among the relevant skills/certification ecosystem. ([Genpact Careers][1])
+
+Your three project references are also the right foundation: the shared conversations correspond to your **end-to-end pipeline, Airflow implementation, and dbt implementation**. ([ChatGPT][2])
+
+# Chetan — Genpact Data Architect Interview Bible
+
+## Architecture + Hands-on Lab + Interview Preparation
+
+We will treat your existing project as **Version 1 of an enterprise data platform** and progressively evolve your understanding toward architect level.
+
+---
+
+# 0. The Most Important Change in How We Learn
+
+Previously, the question was:
+
+> **"How do I build this pipeline?"**
+
+Now the question becomes:
+
+> **"How would I design, justify, scale, secure, monitor, optimize and evolve this pipeline as an enterprise data platform?"**
+
+That distinction is extremely important.
+
+You already have:
+
+```text
+SQL Server
+    │
+    ▼
+Python ingestion
+    │
+    ▼
+GCS
+    │
+    ▼
+Pub/Sub
+    │
+    ▼
+Snowpipe
+    │
+    ▼
+Snowflake
+    │
+    ▼
+dbt
+    │
+    ├── Prepare
+    ├── Normalize
+    ├── Schematize
+    └── Marketplace
+    │
+    ▼
+Analytics / BI
+```
+
+And around it:
+
+```text
+              ┌───────────────────────┐
+              │     Terraform         │
+              │ Infrastructure as Code│
+              └───────────┬───────────┘
+                          │
+              ┌───────────▼───────────┐
+              │    Azure DevOps       │
+              │ CI/CD + Repositories  │
+              └───────────────────────┘
+
+              ┌───────────────────────┐
+              │       Airflow         │
+              │ Orchestration         │
+              └───────────────────────┘
+```
+
+This is **already a real architecture to study**.
+
+We don't need to throw it away.
+
+---
+
+# 1. Our Architecture Learning Philosophy
+
+Every technology we encounter will go through **six questions**.
+
+### ① What problem does it solve?
+
+Example:
+
+> Why do we need Pub/Sub?
+
+Not:
+
+> "Pub/Sub is a messaging service."
+
+Instead:
+
+> "We need to decouple producers from consumers and support event-driven ingestion."
+
+---
+
+### ② Where does it sit in the architecture?
+
+For example:
+
+```text
+Source
+  ↓
+Python
+  ↓
+GCS
+  ↓
+Pub/Sub        ← messaging/event layer
+  ↓
+Snowpipe
+  ↓
+Snowflake      ← analytical storage
+```
+
+---
+
+### ③ What happens internally?
+
+We learn enough internals to explain it confidently in an interview.
+
+---
+
+### ④ What are the alternatives?
+
+For example:
+
+```text
+Pub/Sub
+   ↕
+Kafka
+   ↕
+Azure Event Hubs
+   ↕
+AWS Kinesis
+```
+
+---
+
+### ⑤ Why would an architect choose one?
+
+This is where you move from:
+
+**Data Engineer → Data Architect**
+
+---
+
+### ⑥ What happens when it fails?
+
+For every component:
+
+> "What happens if this breaks?"
+
+That will become one of our biggest themes.
+
+---
+
+# 2. Your Existing Project Becomes Our Reference Architecture
+
+Let's give your project a formal name for the Bible:
+
+# **Chetan Enterprise Data Platform — CEP**
+
+Conceptually:
+
+```text
+                         ENTERPRISE SOURCES
+                               │
+               ┌───────────────┼───────────────┐
+               │               │               │
+           SQL Server        Oracle         Progress
+               │               │               │
+               └───────────────┼───────────────┘
+                               │
+                               ▼
+                    ┌──────────────────┐
+                    │ Python Ingestion │
+                    └────────┬─────────┘
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │      GCS         │
+                    │ Raw/Landing Zone │
+                    └────────┬─────────┘
+                             │
+                    Event Notification
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │     Pub/Sub      │
+                    └────────┬─────────┘
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │    Snowpipe      │
+                    └────────┬─────────┘
+                             │
+                             ▼
+                ┌─────────────────────────┐
+                │       Snowflake         │
+                │                         │
+                │ RAW                     │
+                │   ↓                     │
+                │ PREPARE                 │
+                │   ↓                     │
+                │ NORMALIZE               │
+                │   ↓                     │
+                │ SCHEMATIZE              │
+                │   ↓                     │
+                │ MARKETPLACE              │
+                └───────────┬─────────────┘
+                            │
+                            ▼
+                  Tableau / Power BI
+```
+
+Supporting platform:
+
+```text
+              ┌────────────────────────────┐
+              │          Airflow            │
+              │ Orchestration / Scheduling  │
+              └────────────────────────────┘
+
+              ┌────────────────────────────┐
+              │         Terraform           │
+              │ Infrastructure as Code      │
+              └────────────────────────────┘
+
+              ┌────────────────────────────┐
+              │       Azure DevOps          │
+              │ Git + CI/CD + Environments  │
+              └────────────────────────────┘
+```
+
+This architecture will be our **home base**.
+
+---
+
+# 3. But We Are Going to Evolve It
+
+We will gradually introduce:
+
+```text
+                     CURRENT
+                        │
+                        ▼
+              ┌───────────────────┐
+              │ Batch ingestion    │
+              │ + event ingestion │
+              └─────────┬─────────┘
+                        │
+                        ▼
+                 Data Platform
+                        │
+            ┌───────────┼────────────┐
+            ▼           ▼            ▼
+         Batch       Streaming      CDC
+            │           │            │
+            └───────────┼────────────┘
+                        ▼
+                Enterprise Lake
+                        │
+                        ▼
+               Processing Layer
+             ┌──────────┼─────────┐
+             ▼          ▼         ▼
+          Python      Spark      SQL
+             │          │         │
+             └──────────┼─────────┘
+                        ▼
+                 Data Warehouse
+                        │
+                        ▼
+                  Data Products
+                        │
+                        ▼
+                 BI / Analytics
+```
+
+Then:
+
+```text
+Security
+Governance
+Observability
+Data Quality
+Lineage
+Metadata
+Cost Management
+DR
+High Availability
+```
+
+will be added **around the architecture**, not treated as isolated topics.
+
+---
+
+# 4. The Technology Mapping Strategy
+
+This is exactly what you suggested, and I want to make it a permanent part of the Bible.
+
+We will never learn cloud services in isolation.
+
+We'll create a mental map.
+
+## GCP ↔ Azure ↔ AWS
+
+For example:
+
+| Capability         | GCP                         | Azure                        | AWS                   |
+| ------------------ | --------------------------- | ---------------------------- | --------------------- |
+| Object storage     | GCS                         | ADLS Gen2                    | S3                    |
+| Data warehouse     | BigQuery                    | Synapse / Fabric Warehouse   | Redshift              |
+| Messaging          | Pub/Sub                     | Service Bus                  | SQS/SNS               |
+| Event streaming    | Pub/Sub                     | Event Hubs                   | Kinesis               |
+| Compute            | Compute Engine              | Azure VM                     | EC2                   |
+| Kubernetes         | GKE                         | AKS                          | EKS                   |
+| Serverless         | Cloud Run                   | Container Apps / Functions   | Lambda                |
+| Managed Spark      | Dataproc                    | Azure Databricks / HDInsight | EMR                   |
+| Secrets            | Secret Manager              | Key Vault                    | Secrets Manager       |
+| IAM                | Cloud IAM                   | Azure RBAC / Entra ID        | IAM                   |
+| Monitoring         | Cloud Monitoring            | Azure Monitor                | CloudWatch            |
+| Data integration   | Data Fusion / Composer etc. | Data Factory                 | Glue                  |
+| Orchestration      | Composer                    | Data Factory / Airflow       | MWAA / Step Functions |
+| IaC                | Terraform                   | Terraform                    | Terraform             |
+| Container registry | Artifact Registry           | ACR                          | ECR                   |
+
+**Important:** These aren't always one-to-one equivalents. We will explicitly learn where the semantics differ.
+
+That is much more valuable in an architect interview than memorizing service names.
+
+---
+
+# 5. We'll Also Create a Technology Equivalence Matrix
+
+For every major technology:
+
+```text
+                    INGESTION
+                       │
+       ┌───────────────┼────────────────┐
+       │               │                │
+      GCP            Azure             AWS
+       │               │                │
+    Pub/Sub        Event Hubs         Kinesis
+       │               │                │
+       └───────────────┼────────────────┘
+                       │
+                       ▼
+                   PROCESSING
+                       │
+              ┌────────┼─────────┐
+              │        │         │
+           Python    Spark     SQL
+              │        │         │
+           Pandas  Databricks  Warehouse
+```
+
+Then you'll be able to answer:
+
+> "If your current project uses GCP, how would you implement this on Azure?"
+
+without starting from zero.
+
+---
+
+# 6. What We Will Add to Your Existing Project
+
+We **will not rebuild equivalent systems just for the sake of having more tools**.
+
+Instead:
+
+### Already implemented
+
+| Area                   | Existing implementation          | Status |
+| ---------------------- | -------------------------------- | ------ |
+| Source                 | SQL Server / AdventureWorks      | ✅      |
+| Extraction             | Python                           | ✅      |
+| Object storage         | GCS                              | ✅      |
+| Messaging              | Pub/Sub                          | ✅      |
+| Ingestion              | Snowpipe                         | ✅      |
+| Warehouse              | Snowflake                        | ✅      |
+| Transformation         | dbt                              | ✅      |
+| Orchestration          | Airflow                          | ✅      |
+| IaC                    | Terraform                        | ✅      |
+| CI/CD                  | Azure DevOps                     | ✅      |
+| BI                     | Tableau / Power BI               | ✅      |
+| Incremental processing | dbt/Snowflake                    | ✅      |
+| SCD                    | dbt snapshots                    | ✅      |
+| CDC concepts           | Streams / incremental approaches | ✅      |
+
+Now we'll add **conceptual or small practical extensions** where they fill an architect gap.
+
+---
+
+# 7. New Things We Should Add
+
+## A. Apache Spark
+
+Not because your pipeline requires Spark.
+
+Because an architect should understand distributed processing.
+
+We can take your existing JSON files:
+
+```text
+GCS
+ ↓
+Spark
+ ↓
+Transform
+ ↓
+Parquet
+ ↓
+GCS
+```
+
+Then compare:
+
+```text
+Python/Pandas
+      vs
+Spark
+      vs
+SQL warehouse
+```
+
+You'll learn **when each is appropriate**.
+
+---
+
+# 8. Databricks
+
+We'll create a small parallel architecture:
+
+```text
+GCS
+ │
+ ▼
+Databricks
+ │
+ ├── Spark
+ ├── Delta Lake
+ ├── Catalog
+ └── Workflows
+ │
+ ▼
+Analytics
+```
+
+Then compare it with:
+
+```text
+GCS
+ ↓
+Snowpipe
+ ↓
+Snowflake
+ ↓
+dbt
+```
+
+The interview question becomes:
+
+> "Why would you choose a Databricks lakehouse architecture versus Snowflake?"
+
+That is an **architect question**.
+
+---
+
+# 9. Kafka
+
+We don't need to replace Pub/Sub.
+
+We'll build a conceptual equivalent:
+
+```text
+                 YOUR EXPERIENCE
+
+Progress / Source
+      ↓
+   RabbitMQ
+      ↓
+    Airflow
+      ↓
+    GCS
+```
+
+and compare:
+
+```text
+Producer
+   ↓
+Kafka Topic
+   ↓
+Partitions
+   ↓
+Consumer Group
+   ↓
+Spark / Python
+   ↓
+Target
+```
+
+Then:
+
+```text
+Kafka
+  ↕
+Pub/Sub
+  ↕
+Azure Event Hubs
+  ↕
+AWS Kinesis
+```
+
+You'll understand:
+
+* partitions
+* offsets
+* consumer groups
+* ordering
+* replication
+* retention
+* replay
+* delivery semantics
+* backpressure
+* schema evolution
+
+without falsely claiming Kafka production experience.
+
+---
+
+# 10. CDC
+
+This deserves a full architecture section.
+
+We'll compare:
+
+```text
+Timestamp-based incremental
+             ↓
+Change Tracking
+             ↓
+SQL Server CDC
+             ↓
+Log-based CDC
+             ↓
+Debezium
+             ↓
+Kafka
+```
+
+Then:
+
+```text
+SQL Server
+     │
+     │ CDC
+     ▼
+Debezium
+     │
+     ▼
+Kafka
+     │
+     ▼
+Spark / Consumer
+     │
+     ▼
+Snowflake
+```
+
+And compare it with your current architecture.
+
+That gives you a strong answer to:
+
+> "How would you move from batch ingestion to near-real-time CDC?"
+
+---
+
+# 11. Governance
+
+This is one of your important gaps.
+
+We will add:
+
+```text
+                DATA GOVERNANCE
+                       │
+       ┌───────────────┼────────────────┐
+       ▼               ▼                ▼
+   Metadata         Security         Quality
+       │               │                │
+    Catalog           IAM           Validation
+    Lineage           RBAC          Completeness
+    Glossary          Masking        Accuracy
+    Ownership         Encryption     Timeliness
+```
+
+Then we'll take your `DimCustomer` data.
+
+For example:
+
+```text
+CustomerKey
+FirstName
+LastName
+Email
+BirthDate
+YearlyIncome
+```
+
+and ask:
+
+### Which columns are sensitive?
+
+### Who should access them?
+
+### Should Tableau users see them?
+
+### Should analysts see email?
+
+### Should raw data be accessible?
+
+### Where should masking happen?
+
+### How do we audit access?
+
+This turns an abstract governance topic into something you've actually worked with.
+
+---
+
+# 12. Architecture Security
+
+We'll evolve your architecture into:
+
+```text
+Source
+  │
+  ▼
+Identity
+  │
+  ▼
+GCS
+ │
+ ├── Encryption
+ ├── IAM
+ └── Bucket policies
+  │
+  ▼
+Snowflake
+ │
+ ├── RBAC
+ ├── Roles
+ ├── Warehouses
+ ├── Masking
+ ├── Row access policies
+ └── Audit
+  │
+  ▼
+BI
+```
+
+We'll connect this to your existing:
+
+* Snowflake authentication
+* secure files
+* Terraform
+* Azure DevOps
+* GCP service identities
+* Workload Identity
+
+So you don't merely memorize "RBAC."
+
+You'll understand where it belongs.
+
+---
+
+# 13. Observability
+
+We'll introduce an architect-level monitoring model:
+
+```text
+                   OBSERVABILITY
+                         │
+        ┌────────────────┼────────────────┐
+        ▼                ▼                ▼
+      Logs             Metrics           Alerts
+        │                │                │
+        ▼                ▼                ▼
+   Application       Pipeline          Incident
+      logs           duration          notification
+                     records
+                     failures
+                     lag
+```
+
+For your pipeline:
+
+```text
+SQL extraction
+      ↓
+Python
+      ↓
+GCS
+      ↓
+Pub/Sub
+      ↓
+Snowpipe
+      ↓
+Snowflake
+      ↓
+dbt
+      ↓
+Airflow
+```
+
+We should eventually be able to answer:
+
+> "How would you know exactly where the pipeline failed?"
+
+That's an architect question.
+
+---
+
+# 14. Reliability
+
+We will deliberately break the architecture.
+
+For example:
+
+### Scenario
+
+Snowpipe fails after GCS successfully receives files.
+
+What happens?
+
+We reason:
+
+```text
+GCS
+ │
+ │ file exists
+ ▼
+Event
+ │
+ X
+Snowpipe failure
+```
+
+Then:
+
+* Is the file lost?
+* Can we retry?
+* Will it duplicate?
+* How do we know it was processed?
+* What is the checkpoint?
+* How long do we retain raw files?
+* Can we replay?
+* What happens downstream?
+
+This leads naturally into:
+
+```text
+Retry
+Idempotency
+Checkpoint
+Replay
+DLQ
+Exactly-once / at-least-once
+RPO
+RTO
+```
+
+---
+
+# 15. Performance
+
+We'll use your actual architecture.
+
+Suppose:
+
+```text
+Current:
+1 million records
+30 minutes
+```
+
+Tomorrow:
+
+```text
+100 million records
+```
+
+Now ask:
+
+> What breaks first?
+
+We'll analyze:
+
+```text
+Source extraction
+      ↓
+Python
+      ↓
+Network
+      ↓
+GCS
+      ↓
+Pub/Sub
+      ↓
+Snowpipe
+      ↓
+Snowflake
+      ↓
+dbt
+```
+
+Potential bottlenecks:
+
+* SQL extraction
+* Python serialization
+* small files
+* network throughput
+* message volume
+* Snowpipe ingestion
+* warehouse size
+* dbt query
+* joins
+* clustering
+* concurrency
+
+That teaches architecture far better than memorizing optimization tips.
+
+---
+
+# 16. Cost Architecture
+
+Then we'll put cost beside performance.
+
+For example:
+
+```text
+Option A
+
+Large Snowflake warehouse
+        ↓
+Fast
+        ↓
+Expensive
+
+
+Option B
+
+Smaller warehouse
+        ↓
+Optimized SQL
+        ↓
+Longer runtime
+        ↓
+Lower compute cost
+```
+
+Then:
+
+> What is the business requirement?
+
+If SLA is:
+
+```text
+5 minutes
+```
+
+your answer differs from:
+
+```text
+5 hours
+```
+
+That's architecture.
+
+---
+
+# 17. Disaster Recovery
+
+We will eventually design:
+
+```text
+                    PRIMARY
+                       │
+                       ▼
+                  Data Platform
+                       │
+                ┌──────┴──────┐
+                ▼             ▼
+             Backup         Replica
+```
+
+and learn:
+
+### RPO
+
+> How much data can we afford to lose?
+
+### RTO
+
+> How quickly must the system recover?
+
+Then apply it to:
+
+* GCS
+* Snowflake
+* Airflow
+* databases
+* pipelines
+* CI/CD
+
+---
+
+# 18. The Architecture Decision Framework
+
+For every technology choice, we'll use:
+
+```text
+Requirement
+    ↓
+Volume
+    ↓
+Velocity
+    ↓
+Latency
+    ↓
+Data format
+    ↓
+Reliability
+    ↓
+Security
+    ↓
+Scalability
+    ↓
+Operational complexity
+    ↓
+Cost
+    ↓
+Team expertise
+    ↓
+Technology choice
+```
+
+This is probably one of the most important things you'll learn.
+
+---
+
+# 19. Example: Why Your Architecture Uses GCS
+
+Interviewer:
+
+> Why didn't you load directly from SQL Server into Snowflake?
+
+Your architect reasoning should become:
+
+```text
+Source
+ ↓
+GCS
+ ↓
+Snowflake
+```
+
+because GCS gives us:
+
+### Decoupling
+
+Source extraction doesn't depend directly on Snowflake availability.
+
+### Replayability
+
+Raw files can be reprocessed.
+
+### Durability
+
+We preserve source data independently.
+
+### Multi-consumer capability
+
+Other systems can consume the raw data.
+
+### Cost separation
+
+Storage and compute have different characteristics.
+
+### Auditability
+
+We can retain original ingestion artifacts.
+
+### Schema evolution
+
+Raw data can be retained even if downstream schemas change.
+
+Now you've answered as an architect.
+
+---
+
+# 20. Example: Why Airflow?
+
+Don't say:
+
+> "Airflow schedules pipelines."
+
+Instead:
+
+> Airflow provides orchestration and dependency management across heterogeneous data-processing tasks. In our architecture it coordinates extraction, ingestion and transformation workflows, handles retries and scheduling, provides operational visibility, and allows dependencies to be expressed as a DAG.
+
+Then immediately:
+
+> "But Airflow isn't the data-processing engine itself."
+
+That distinction is important.
+
+---
+
+# 21. Example: Why Terraform?
+
+Not:
+
+> "Terraform creates infrastructure."
+
+Architect answer:
+
+> "Terraform lets us define infrastructure declaratively and version it alongside application code, which improves consistency across environments, reduces configuration drift, supports review through pull requests, and makes infrastructure changes repeatable."
+
+Then connect to:
+
+```text
+DEV
+TEST
+PROD
+```
+
+and your actual Azure pipeline.
+
+---
+
+# 22. Example: Why dbt?
+
+Not:
+
+> "dbt transforms data."
+
+Instead:
+
+> "dbt brings software-engineering practices into warehouse transformations: modular SQL models, dependency management, testing, documentation, lineage and controlled deployment. It is particularly useful when transformation happens inside the analytical warehouse."
+
+Then compare:
+
+```text
+Stored Procedures
+        vs
+dbt
+        vs
+Spark
+        vs
+Python
+```
+
+That's architect-level.
+
+---
+
+# 23. The 4 Layers of Knowledge We Will Build
+
+Every topic will have four levels.
+
+## Level 1 — Understand
+
+> What is it?
+
+## Level 2 — Implement
+
+> How do I use it?
+
+## Level 3 — Architect
+
+> When should I use it?
+
+## Level 4 — Defend
+
+> Why this instead of the alternatives?
+
+You already have significant Level 2 experience in several technologies.
+
+Our biggest job now is moving you strongly into:
+
+**Level 3 + Level 4.**
+
+---
+
+# 24. The Interview Bible Structure
+
+We'll make every module follow this exact format.
+
+---
+
+## 🧠 What they're actually testing
+
+What the interviewer wants to discover.
+
+## 📖 Simple explanation
+
+Plain-English explanation.
+
+## 🏗️ Your architecture
+
+How the concept fits into your project.
+
+## 🏢 Canam example
+
+Where applicable, how it maps to your professional experience.
+
+## 🧪 AdventureWorks example
+
+Concrete hands-on implementation.
+
+## 🔧 Implementation
+
+Commands/configuration/code where useful.
+
+## 🏛️ Architecture
+
+How an enterprise system would use it.
+
+## ⚖️ Trade-offs
+
+Why A vs B.
+
+## 🔥 Production scenarios
+
+What happens when things fail.
+
+## 🔐 Security
+
+Security implications.
+
+## 📈 Performance
+
+Scaling and optimization.
+
+## 💰 Cost
+
+Cost considerations.
+
+## 🎯 Interview answer
+
+A polished answer you can actually give.
+
+## 🔄 Follow-up questions
+
+Likely interviewer probes.
+
+## 🧑‍💼 Senior/Architect answer
+
+What distinguishes an architect response.
+
+## 📝 Practice
+
+Questions you answer yourself.
+
+---
+
+# 25. The Complete Curriculum
+
+We'll use this as the master index.
+
+---
+
+## PART I — ARCHITECTURE FOUNDATION
+
+### Module 1
+
+**Data Architecture Fundamentals**
+
+### Module 2
+
+**Enterprise Data Platform Architecture**
+
+### Module 3
+
+**OLTP / OLAP / ODS / Warehouse / Lake / Lakehouse**
+
+### Module 4
+
+**Batch / Streaming / Event-Driven Architecture**
+
+### Module 5
+
+**Architecture Patterns and Trade-offs**
+
+---
+
+## PART II — DATA MODELING
+
+### Module 6
+
+**Relational Modeling**
+
+### Module 7
+
+**Dimensional Modeling**
+
+### Module 8
+
+**Facts / Dimensions / Grain**
+
+### Module 9
+
+**SCD 0/1/2/3**
+
+### Module 10
+
+**Data Vault**
+
+### Module 11
+
+**Star / Snowflake Schema**
+
+---
+
+## PART III — DATA ENGINEERING
+
+### Module 12
+
+**ETL / ELT**
+
+### Module 13
+
+**Full / Incremental Processing**
+
+### Module 14
+
+**CDC**
+
+### Module 15
+
+**Idempotency / Replay / Deduplication**
+
+### Module 16
+
+**Late Data / Deletes / Schema Evolution**
+
+---
+
+## PART IV — SQL & DATABASE ARCHITECTURE
+
+### Module 17
+
+**Advanced SQL**
+
+### Module 18
+
+**Query Optimization**
+
+### Module 19
+
+**Indexes / Partitioning**
+
+### Module 20
+
+**Transactions / Isolation**
+
+### Module 21
+
+**Database Architecture**
+
+---
+
+## PART V — CLOUD ARCHITECTURE
+
+### Module 22
+
+**GCP Data Architecture**
+
+### Module 23
+
+**Azure Data Architecture**
+
+### Module 24
+
+**AWS Mapping**
+
+### Module 25
+
+**GCP ↔ Azure ↔ AWS Service Mapping**
+
+---
+
+## PART VI — YOUR CORE STACK
+
+### Module 26
+
+**GCS / ADLS / S3**
+
+### Module 27
+
+**Pub/Sub / Event Hubs / Kafka**
+
+### Module 28
+
+**Snowflake Architecture**
+
+### Module 29
+
+**Snowpipe**
+
+### Module 30
+
+**Snowflake Streams & Tasks**
+
+### Module 31
+
+**dbt Architecture**
+
+### Module 32
+
+**Airflow Architecture**
+
+### Module 33
+
+**Terraform Architecture**
+
+### Module 34
+
+**Azure DevOps / CI/CD**
+
+---
+
+# PART VII — BIG DATA
+
+### Module 35
+
+**Distributed Systems Fundamentals**
+
+### Module 36
+
+**Apache Spark**
+
+### Module 37
+
+**Spark Performance**
+
+### Module 38
+
+**Databricks**
+
+### Module 39
+
+**Delta Lake**
+
+### Module 40
+
+**Lakehouse Architecture**
+
+---
+
+# PART VIII — STREAMING
+
+### Module 41
+
+**Kafka**
+
+### Module 42
+
+**Kafka Architecture**
+
+### Module 43
+
+**Partitions / Offsets / Consumer Groups**
+
+### Module 44
+
+**Delivery Semantics**
+
+### Module 45
+
+**Schema Registry**
+
+### Module 46
+
+**Debezium / CDC**
+
+### Module 47
+
+**Streaming Architecture**
+
+---
+
+# PART IX — GOVERNANCE & SECURITY
+
+### Module 48
+
+**Data Governance**
+
+### Module 49
+
+**Data Quality**
+
+### Module 50
+
+**Metadata**
+
+### Module 51
+
+**Data Lineage**
+
+### Module 52
+
+**Data Catalog**
+
+### Module 53
+
+**PII / Sensitive Data**
+
+### Module 54
+
+**IAM / RBAC**
+
+### Module 55
+
+**Encryption / Masking**
+
+---
+
+# PART X — RELIABILITY
+
+### Module 56
+
+**Observability**
+
+### Module 57
+
+**Monitoring**
+
+### Module 58
+
+**Retries / Backoff / DLQ**
+
+### Module 59
+
+**Fault Tolerance**
+
+### Module 60
+
+**High Availability**
+
+### Module 61
+
+**Disaster Recovery**
+
+### Module 62
+
+**RPO / RTO**
+
+---
+
+# PART XI — PERFORMANCE & COST
+
+### Module 63
+
+**Data Warehouse Performance**
+
+### Module 64
+
+**Snowflake Optimization**
+
+### Module 65
+
+**Spark Optimization**
+
+### Module 66
+
+**Pipeline Optimization**
+
+### Module 67
+
+**Cloud Cost Optimization**
+
+---
+
+# PART XII — ARCHITECTURE CASE STUDIES
+
+### Module 68
+
+**Design a 100-source Enterprise Platform**
+
+### Module 69
+
+**Design Customer 360**
+
+### Module 70
+
+**Design Real-Time Analytics**
+
+### Module 71
+
+**Design CDC Platform**
+
+### Module 72
+
+**Migrate On-Prem → Cloud**
+
+### Module 73
+
+**Build Enterprise Data Lakehouse**
+
+### Module 74
+
+**Build Regulatory Reporting Platform**
+
+### Module 75
+
+**Design Highly Available Data Platform**
+
+---
+
+# PART XIII — ARCHITECT INTERVIEW
+
+### Module 76
+
+**Requirements Gathering**
+
+### Module 77
+
+**Architecture Documentation**
+
+### Module 78
+
+**Technology Selection**
+
+### Module 79
+
+**Stakeholder Management**
+
+### Module 80
+
+**Architecture Review**
+
+### Module 81
+
+**Design Trade-offs**
+
+### Module 82
+
+**Technical Leadership**
+
+### Module 83
+
+**Production Incident Scenarios**
+
+### Module 84
+
+**Genpact Mock Interview**
+
+---
+
+# 26. One Important Rule
+
+We will **not blindly complete 84 modules as theory**.
+
+Instead:
+
+```text
+LEARN CONCEPT
+     ↓
+MAP TO YOUR PROJECT
+     ↓
+IMPLEMENT / MODIFY SOMETHING
+     ↓
+BREAK IT
+     ↓
+FIX IT
+     ↓
+ARCHITECTURE DISCUSSION
+     ↓
+INTERVIEW QUESTIONS
+```
+
+For example:
+
+### Kafka
+
+We don't need to build an enormous Kafka platform.
+
+We can build a small demonstration:
+
+```text
+Python Producer
+      ↓
+Kafka
+      ↓
+Consumer
+      ↓
+GCS
+```
+
+Then learn the architecture.
+
+That's enough to understand:
+
+* topic
+* partition
+* offset
+* consumer group
+* replay
+* ordering
+* delivery semantics
+
+Then move on.
+
+---
+
+# 27. Your Final Target Architecture
+
+By the end of this preparation, I want you to be able to look at this:
+
+```text
+                        ENTERPRISE SOURCES
+        ┌──────────────┬──────────────┬───────────────┐
+        │              │              │               │
+     SQL Server      Oracle        SaaS APIs       Events
+        │              │              │               │
+        └──────────────┴──────┬───────┴───────────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │ Ingestion / CDC     │
+                    │ Python / Kafka / CDC │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Data Lake / Object   │
+                    │ Storage              │
+                    │ GCS / ADLS / S3      │
+                    └──────────┬──────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │ Processing          │
+                    │ Spark / SQL / dbt   │
+                    └──────────┬──────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              ▼                ▼                ▼
+          Snowflake         BigQuery        Databricks
+              │                │                │
+              └────────────────┼────────────────┘
+                               │
+                        Data Products
+                               │
+                ┌──────────────┼──────────────┐
+                ▼              ▼              ▼
+             Tableau        Power BI       APIs/ML
+```
+
+With:
+
+```text
+Security
+Governance
+Data Quality
+Lineage
+Metadata
+Monitoring
+CI/CD
+Terraform
+Observability
+DR
+Cost Management
+```
+
+surrounding the entire platform.
+
+And then, critically, you'll be able to explain **why every box exists, why it was chosen, what alternatives exist, what happens when it fails, how it scales, how it is secured, and how much it costs.**
+
+---
+
+# 28. Where We Start
+
+We should **not start with Spark or Kafka**.
+
+Your first lesson should be:
+
+# **Module 1 — Data Architecture Fundamentals & Architect Thinking**
+
+And we'll build it around your actual project.
+
+The first thing we'll establish is:
+
+```text
+Data
+ ↓
+Data Architecture
+ ↓
+Data Platform
+ ↓
+Data Pipeline
+ ↓
+Data Engineering
+ ↓
+Data Architecture Decision
+```
+
+Then we'll take your existing:
+
+```text
+SQL Server → Python → GCS → Pub/Sub → Snowpipe → Snowflake → dbt → BI
+```
+
+and dissect it **box by box**:
+
+> **Why is this component here?**
+
+> **What requirement does it satisfy?**
+
+> **What happens if we remove it?**
+
+> **What alternatives exist?**
+
+> **Why did we choose it?**
+
+> **How would we scale it from 1 GB/day to 10 TB/day?**
+
+> **How would we make it secure?**
+
+> **How would we make it highly available?**
+
+> **How would we monitor it?**
+
+> **How would we implement the same architecture on Azure?**
+
+> **How would we implement it using Databricks/Kafka?**
+
+> **What would change and what would remain conceptually identical?**
+
+That will be our **Data Architect training loop**.
+
+And one more thing: your current project should remain the **golden reference project**, rather than becoming a collection of disconnected demos. Every new technology will either **extend it, replace one component temporarily for comparison, or be demonstrated as a small isolated experiment**. That keeps the learning aligned with the Genpact role and prevents us from spending weeks on tool-specific trivia.
+
+[1]: https://genpact.wd108.myworkdayjobs.com/en-US/External_Careers/job/Data-Architect---Data-Engineering-4D_JR10027488?utm_source=chatgpt.com "Data Architect - Data Engineering 4D"
+[2]: https://chatgpt.com/share/6abe84d1-12ac-83e8-9359-9e0a3e7dc364?ogimg=plain "ChatGPT - Practice End to End Data pipeline"

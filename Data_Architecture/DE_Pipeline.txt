@@ -1,0 +1,19 @@
+Ingestion:
+SQL Server → Python → GCS → Pub/Sub → Snowpipe → Snowflake
+
+Transformation:
+Snowflake → dbt → dimensional models
+
+Infrastructure:
+Terraform → GCP + Snowflake
+
+CI/CD:
+Git → Azure DevOps → Terraform validation/plan/WIF
+
+Incremental processing:
+Watermark → incremental extraction
+
+Change handling:
+CDC concepts → SCD1 → SCD2
+
+That's a real DE pipeline

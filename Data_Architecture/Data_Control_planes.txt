@@ -1,0 +1,28 @@
+                       
+|                       ENTERPRISE DATA PLATFORM                             |
+|                                                                            |
+─────────────────────────────────────────────────────────────────────────────|
+|                             DATA PLANE                                     |
+|                                │                                           |
+|       Sources → Ingestion → Storage → Processing → Serving                 |
+|                                │                                           |
+|        ────────────────────────┼────────────────────────                   |
+|                                │                                           |
+|                         CONTROL PLANE                                      |
+|                                │                                           |
+|                    Orchestration / CI/CD                                   |
+|                                │                                           |
+|        ────────────────────────┼────────────────────────                   |
+|                                │                                           |
+|                     CROSS-CUTTING PLANE                                    |
+|                                │                                           |
+|       Security / Governance / Quality / Observability                      |
+|                                │                                           |
+|        ────────────────────────┼────────────────────────                   |
+|                                │                                           |
+|                     PLATFORM OPERATIONS                                    |
+|                                │                                           |
+|                   Cost / Reliability / DR                                  |
+|────────────────────────────────────────────────────────────────────────────|
+
+
