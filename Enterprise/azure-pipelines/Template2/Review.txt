@@ -1,0 +1,223 @@
+all the points steven suggested to review and test in simple words for me to understand
+Steven is asking you to review four possible failure points in your Airflow deployment pipeline. I'll explain each in simple terms, using your actual azure-pipeline-controlled.yml and template_01.yml, including what to check and how to test it.
+
+Steven's review checklist
+Step 1 — Git should detect all changes, not just the last commit
+Review and test
+What Steven means
+
+Your current code uses:
+
+BASE_COMMIT="HEAD~1"
+git diff --name-status -M $BASE_COMMIT HEAD
+
+Think of Git history like this:
+
+Commit 1 → Commit 2 → Commit 3 → Commit 4
+                              ↑            ↑
+                         Earlier change  Latest change
+If the comparison is HEAD~1 against HEAD, it compares Commit 3 with Commit 4. It may miss changes introduced in Commit 2 or Commit 3 that are part of the overall PR.
+
+For example, suppose a developer makes three commits:
+
+Commit
+
+Change
+
+Commit 1
+
+Adds DAGS/sales.py
+
+Commit 2
+
+Adds plugins/custom_hook.py
+
+Commit 3
+
+Modifies DAGS/inventory.py
+
+Your pipeline could detect only the change from Commit 3, instead of all three files.
+
+What you need to review
+
+For PR validation, compare the feature branch against the appropriate merge base with its target branch. For deployment, use the commit last successfully deployed to that environment as the comparison baseline.
+
+Do not blindly replace the current command with origin/main..HEAD in every situation. The right comparison depends on whether you're validating a PR or deploying to an environment.
+
+How to test it
+
+
+Make a test branch with three commits that change different files.
+
+Open a PR containing those commits.
+
+Verify that the change report identifies every changed file.
+
+Verify that deployment detects all files that have not yet been promoted to the target environment.
+Expected result: No earlier, undelivered changes should be missed.
+
+Step 2 — File detection must handle renames and unusual filenames correctly
+Review and test
+What Steven means
+
+Your code already contains rename handling:
+
+if [[ "$status" == R* ]]; then
+
+So rename support is not completely missing. However, the way the script filters and extracts file paths can fail in certain situations.
+
+Example A — Normal rename
+A developer renames:
+
+DAGS/old_sales.py → DAGS/new_sales.py
+The deployment should:
+
+Delete dags/old_sales.py from GCS.
+
+Upload DAGS/new_sales.py to dags/new_sales.py in GCS.
+
+Your existing code is intended to handle this case.
+
+Example B — Rename between folders
+A developer moves a file:
+
+DAGS/custom_hook.py → plugins/custom_hook.py
+Your current code can skip this rename because it expects both the old and new paths to belong to the same folder. The old GCS object may remain, and the new one may not be uploaded.
+
+Example C — Filename containing spaces
+Consider:
+
+DAGS/monthly sales report.py
+Your script uses commands such as:
+
+awk '{print $2}'
+
+This can split a filename containing spaces into multiple fields and produce an incorrect path.
+
+What you need to review
+
+Consider switching to NUL-delimited Git output using -z, which safely separates filenames. You can also disable rename detection and treat a rename as two operations: delete the old path and add the new path. That lets the regular deletion and upload logic handle moves between folders.
+
+How to test it
+
+
+Add a new DAG file.
+
+Modify an existing DAG.
+
+Delete a DAG.
+
+Rename a DAG within DAGS/.
+
+Rename a plugin within plugins/.
+
+Move a file from DAGS/ to plugins/, and vice versa.
+
+Test a filename containing spaces.
+Expected result: Each old GCS object is removed where appropriate, and every new or modified file is uploaded to the correct location.
+
+Step 3 — Delta deployment cannot replace PR approvals and testing
+Review repository policies
+What Steven means
+
+Imagine two developers.
+
+Developer 1 merges incomplete code into main.
+
+Developer 2 subsequently merges a separate PR.
+
+The next deployment runs from main.
+
+Even if your script deploys only changed files, Developer 1's code is still part of main. A later deployment can still promote it.
+
+Your deployment script determines which files to deploy. It does not determine whether code was properly reviewed and approved before merging.
+
+What you need to review
+In Azure DevOps, check that the main branch has the required controls:
+
+Required reviewer approvals.
+
+A successful PR build-validation policy.
+
+Automated tests required to pass before merging.
+
+Airflow DAG import or parsing validation to catch invalid DAG code before merge.
+
+For Azure Repos Git, verify this through the repository's branch policies; a YAML pr: declaration alone does not configure PR validation. See Microsoft's documentation on branch policies and build validation.
+
+How to test it
+
+Create a test PR with a failing unit test.
+
+Verify that the build validation fails.
+
+Verify that the PR cannot be completed without satisfying the required policies.
+
+Create a test DAG with an import or syntax error and verify that validation catches it.
+
+Verify that a failed SANDBOX deployment prevents TEST and PROD stages from running.
+Expected result: Unvalidated code is prevented from merging, and failed deployment stages stop further promotion.
+
+Step 4 — Do not hardcode the Git empty-tree hash
+Small code change
+What Steven means
+
+Your existing code uses this fixed value when a previous commit cannot be found:
+
+BASE_COMMIT="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+This is the empty-tree hash for Git repositories using SHA-1.
+
+The fallback allows Git to compare against an empty repository tree—for example, when there is no previous commit. However, hardcoding the hash assumes a specific Git object hash format.
+
+What you need to change
+
+Calculate the empty-tree hash dynamically:
+
+EMPTY_TREE=$(git hash-object -t tree /dev/null)
+
+Then use $EMPTY_TREE as the fallback comparison baseline when required.
+
+How to test it
+
+
+Verify that the script uses the dynamic hash when no parent commit exists.
+
+Confirm that the deployment change-detection script runs without errors.
+
+Check that normal commits with an existing parent still use the intended comparison baseline.
+Expected result: The fallback does not depend on a hardcoded hash.
+
+Final checklist — What you should actually do
+Implementation checklist
+
+0 of 5
+
+
+Fix the Git comparison baseline
+
+Use the PR merge base for PR checks and track the last successfully deployed commit for each environment.
+
+
+Improve filename and rename handling
+
+Use safe path parsing and test additions, modifications, deletions, same-folder renames and cross-folder moves.
+
+
+Verify Azure DevOps branch policies
+
+Require reviews, successful build validation and Airflow DAG validation before merging to main.
+
+
+Calculate the empty-tree hash dynamically
+
+Remove the hardcoded SHA-1 value and test the fallback.
+
+
+Verify environment configuration
+
+Confirm that SANDBOX, TEST and PROD each use the correct GCS bucket and service account.
+
+One additional issue in the YAML you shared: SANDBOX, TEST and PROD currently point to the same sandbox bucket and use the same non-production service-account key. If those values are not temporary test settings, correct them before running the full promotion pipeline.
+
+The best order is to review the comparison baseline first, improve path parsing second, verify branch protections third, and then test the complete promotion flow from SANDBOX through PROD.
