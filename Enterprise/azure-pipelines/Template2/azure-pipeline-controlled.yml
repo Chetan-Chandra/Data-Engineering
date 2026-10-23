@@ -1,0 +1,206 @@
+trigger:
+  branches:
+    include:
+      - main
+
+# GitHub repositories can use this PR trigger.
+# For Azure Repos Git, configure PR validation through the main branch's
+# Build Validation branch policy instead.
+
+pr:
+  branches:
+    include:
+      - '*'
+
+variables:
+  # TEMPORARY VALIDATION CONFIGURATION:
+  # These are the values from your latest YAML. All three stages currently
+  # point to the sandbox bucket and non-production key.
+  # Set the correct distinct bucket/key values before real promotion.
+
+  - name: SANDBOX_BUCKET
+    value: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+  - name: SANDBOX_GCP_KEY_FILE
+    value: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+
+  - name: TEST_BUCKET
+    value: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+  - name: TEST_GCP_KEY_FILE
+    value: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+
+  - name: REGISTRY_URL_TEST
+    value: 'northamerica-northeast1-docker.pkg.dev'
+  - name: IMAGE_PATH_TEST
+    value: 'prj-n-cdp-ingestion/airflow/custom-airflow'
+
+  - name: PROD_BUCKET
+    value: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+  - name: PROD_GCP_KEY_FILE
+    value: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+
+stages:
+
+  # PR VALIDATION, UNIT TESTS AND AIRFLOW DAG PARSING
+  - stage: unit_tests
+    displayName: 'PR Validation & Unit Tests'
+    jobs:
+      - job: manual_container_test
+        displayName: 'Validate Changes & Run Tests'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          # COMPARE PR AGAINST ITS TARGET BRANCH
+          - script: |
+              set -euo pipefail
+
+              echo "Build reason: $(Build.Reason)"
+              echo "Source branch: $(Build.SourceBranch)"
+
+              if [[ "$(Build.Reason)" == "PullRequest" ]]; then
+                TARGET_BRANCH="$(System.PullRequest.TargetBranch)"
+
+                if [[ -z "$TARGET_BRANCH" ]]; then
+                  echo "ERROR: PR target branch is unavailable."
+                  exit 1
+                fi
+
+                echo "PR target branch: $TARGET_BRANCH"
+
+                git fetch --no-tags origin "$TARGET_BRANCH"
+                BASE_COMMIT="$(git merge-base HEAD FETCH_HEAD)"
+
+                echo "Comparison base: $BASE_COMMIT"
+
+                echo ""
+                echo "All changed files:"
+                git diff --name-status --no-renames "$BASE_COMMIT" HEAD
+
+                echo ""
+                echo "DAG changes:"
+                git diff --name-status --no-renames "$BASE_COMMIT" HEAD -- DAGS/
+
+                echo ""
+                echo "Plugin changes:"
+                git diff --name-status --no-renames "$BASE_COMMIT" HEAD -- plugins/
+              else
+                echo "Not a PR build."
+                echo "Deployment changes will be calculated from each environment's checkpoint."
+              fi
+            displayName: 'Validate PR Changes'
+
+          # AUTHENTICATE TO ARTIFACT REGISTRY
+          - task: DownloadSecureFile@1
+            name: test_key
+            inputs:
+              secureFile: '$(TEST_GCP_KEY_FILE)'
+            displayName: 'Download GCP Service Account Key'
+
+          - script: |
+              set -euo pipefail
+
+              cat "$(test_key.secureFilePath)" | docker login \
+                -u _json_key \
+                --password-stdin \
+                "https://$(REGISTRY_URL_TEST)"
+
+              docker pull "$(REGISTRY_URL_TEST)/$(IMAGE_PATH_TEST):latest"
+            displayName: 'Login and Pull TEST Airflow Image'
+
+          # RUN UNIT TESTS AND AIRFLOW DAG PARSING IN THE SAME CONTAINER
+          - script: |
+              set -euo pipefail
+
+              docker run --rm \
+                -v "$(Build.SourcesDirectory):/workspace" \
+                -w /workspace \
+                -e PYTHONPATH=/workspace:/workspace/plugins \
+                -e PYTEST_ADDOPTS="-p no:cacheprovider" \
+                -e AIRFLOW_HOME=/tmp/airflow \
+                -e AIRFLOW__CORE__DAGS_FOLDER=/workspace/DAGS \
+                -e AIRFLOW__CORE__PLUGINS_FOLDER=/workspace/plugins \
+                -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
+                "$(REGISTRY_URL_TEST)/$(IMAGE_PATH_TEST):latest" \
+                bash -c "set -e; pip install -r requirements.txt -q && pytest Tests/ -v && python -c \"from airflow.models import DagBag; bag = DagBag(dag_folder='/workspace/DAGS', include_examples=False); print('DAG import errors:', bag.import_errors); raise SystemExit(1 if bag.import_errors else 0)\""
+            displayName: 'Run Pytest and Validate Airflow DAGs'
+
+
+  # DEPLOY TO SANDBOX AFTER SUCCESSFUL VALIDATION
+  - stage: deploy_sandbox
+    displayName: 'Deploy Airflow to SANDBOX'
+    dependsOn: unit_tests
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    lockBehavior: sequential
+
+    jobs:
+      - deployment: sync_to_sandbox
+        displayName: 'Deploy Changed Files to SANDBOX'
+        environment: 'Sandbox - Airflow DAGS'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  fetchDepth: 0
+
+                - template: template_01.yml
+                  parameters:
+                    deployment_environment: 'sandbox'
+                    airflow_bucket: $(SANDBOX_BUCKET)
+                    gcp_secure_file: $(SANDBOX_GCP_KEY_FILE)
+
+
+  # DEPLOY TO TEST ONLY AFTER SANDBOX SUCCEEDS
+  - stage: deploy_test
+    displayName: 'Deploy Airflow to TEST'
+    dependsOn: deploy_sandbox
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    lockBehavior: sequential
+
+    jobs:
+      - deployment: sync_to_test
+        displayName: 'Deploy Changed Files to TEST'
+        environment: 'Test - Airflow DAGS'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  fetchDepth: 0
+
+                - template: template_01.yml
+                  parameters:
+                    deployment_environment: 'test'
+                    airflow_bucket: $(TEST_BUCKET)
+                    gcp_secure_file: $(TEST_GCP_KEY_FILE)
+
+
+  # DEPLOY TO PROD ONLY AFTER TEST SUCCEEDS
+  - stage: deploy_prod
+    displayName: 'Deploy Airflow to PROD'
+    dependsOn: deploy_test
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    lockBehavior: sequential
+
+    jobs:
+      - deployment: sync_to_prod
+        displayName: 'Deploy Changed Files to PROD'
+        environment: 'Prod - Airflow DAGS'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  fetchDepth: 0
+
+                - template: template_01.yml
+                  parameters:
+                    deployment_environment: 'prod'
+                    airflow_bucket: $(PROD_BUCKET)
+                    gcp_secure_file: $(PROD_GCP_KEY_FILE)

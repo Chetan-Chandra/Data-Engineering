@@ -1,0 +1,432 @@
+I'll give you the two complete YAML files: one reusable deployment template and one main pipeline. The changes address Steven's four concerns and add Airflow DAG parsing validation before promotion.
+
+The main improvements are:
+
+| Area               | Change                                                                                                                     |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Git comparison     | PR checks use the target branch's merge base; deployments track the last successfully deployed commit per environment.     |
+| File parsing       | Replace `grep` and `awk` with NUL-delimited Git output.                                                                    |
+| Renames            | Disable rename detection so moves are processed as deletion plus addition, including moves between `DAGS/` and `plugins/`. |
+| Empty-tree hash    | Generate it dynamically using `git hash-object -t tree /dev/null`.                                                         |
+| Failed deployments | Do not update the deployment checkpoint unless all file operations succeed.                                                |
+| Concurrent runs    | Use sequential lock behavior; Azure DevOps environment settings must also have an Exclusive lock check configured.         |
+| PR protection      | Add DAG parsing validation and require branch-policy build validation and reviews before merging.                          |
+
+One important detail: your latest pipeline values point SANDBOX, TEST and PROD to the same bucket. I'll preserve the values you supplied in the code below rather than silently enabling a real production deployment. Those values are suitable only for controlled validation, not for verifying environment isolation.
+
+## 1. Reusable deployment template — `template_01.yml`
+
+Save this as `template_01.yml`, or use its contents to replace your current reusable template.
+
+```
+parameters:
+  - name: airflow_bucket
+    type: string
+  - name: gcp_secure_file
+    type: string
+  - name: deployment_environment
+    type: string
+
+steps:
+  # GCP AUTHENTICATION
+  - task: DownloadSecureFile@1
+    name: google_credentials
+    inputs:
+      secureFile: '${{ parameters.gcp_secure_file }}'
+    displayName: 'Download GCP Service Account Key'
+
+  - script: |
+      set -euo pipefail
+      chmod 600 "$(google_credentials.secureFilePath)"
+      gcloud auth activate-service-account --key-file="$(google_credentials.secureFilePath)"
+    displayName: 'Authenticate with GCP'
+
+  # DEPLOY CHANGED DAG AND PLUGIN FILES
+  - script: |
+      set -euo pipefail
+
+      BUCKET_URI="gs://${{ parameters.airflow_bucket }}"
+      ENVIRONMENT="${{ parameters.deployment_environment }}"
+      DEPLOY_COMMIT="$(git rev-parse HEAD)"
+      STATE_URI="$BUCKET_URI/_deployment_state/$ENVIRONMENT/last_successful_commit.txt"
+
+      case "$ENVIRONMENT" in
+        sandbox|test|prod) ;;
+        *)
+          echo "ERROR: Unsupported deployment environment: $ENVIRONMENT"
+          exit 1
+          ;;
+      esac
+
+      CHANGES_FILE="$(mktemp)"
+      STATE_FILE="$(mktemp)"
+      trap 'rm -f "$CHANGES_FILE" "$STATE_FILE"' EXIT
+
+      echo "Environment: $ENVIRONMENT"
+      echo "Target bucket: $BUCKET_URI"
+      echo "Deployment commit: $DEPLOY_COMMIT"
+
+      # READ THE LAST SUCCESSFULLY DEPLOYED COMMIT
+      if BASE_COMMIT="$(gcloud storage cat "$STATE_URI" 2>/dev/null | tr -d '\r\n')" && [[ -n "$BASE_COMMIT" ]]; then
+        echo "Last successfully deployed commit: $BASE_COMMIT"
+
+        if ! git cat-file -e "${BASE_COMMIT}^{commit}" 2>/dev/null; then
+          echo "ERROR: The previous deployment commit is unavailable in Git history."
+          echo "Cannot safely calculate the deployment changes."
+          exit 1
+        fi
+      else
+        echo "WARNING: No deployment checkpoint exists for $ENVIRONMENT."
+        echo "Using an empty Git tree for the initial deployment."
+
+        BASE_COMMIT="$(git hash-object -t tree /dev/null)"
+      fi
+
+      # DISABLE RENAME DETECTION: RENAMES BECOME DELETE + ADD
+      # -z PRESERVES FILENAMES CONTAINING SPACES OR NEWLINES
+      git diff --name-status --no-renames -z \
+        "$BASE_COMMIT" "$DEPLOY_COMMIT" -- DAGS/ plugins/ > "$CHANGES_FILE"
+
+      # DELETE AN OBJECT, TOLERATING AN ALREADY-ABSENT OBJECT
+      delete_object() {
+        local uri="$1"
+
+        if gcloud storage ls "$uri" >/dev/null 2>&1; then
+          echo "Deleting: $uri"
+          gcloud storage rm "$uri" --quiet
+        else
+          # Confirm the bucket is accessible before treating the object as absent.
+          gcloud storage ls "$BUCKET_URI/" >/dev/null
+          echo "INFO: Object is already absent: $uri"
+        fi
+      }
+
+      PROCESSED_COUNT=0
+
+      # PARSE NUL-DELIMITED GIT STATUS/PATH PAIRS
+      while IFS= read -r -d '' status; do
+        if ! IFS= read -r -d '' file_path; then
+          echo "ERROR: Incomplete Git change record."
+          exit 1
+        fi
+
+        case "$file_path" in
+          DAGS/*)
+            target_folder="dags"
+            relative_path="${file_path#DAGS/}"
+            ;;
+          plugins/*)
+            target_folder="plugins"
+            relative_path="${file_path#plugins/}"
+            ;;
+          *)
+            continue
+            ;;
+        esac
+
+        target_uri="$BUCKET_URI/$target_folder/$relative_path"
+
+        case "$status" in
+          D)
+            delete_object "$target_uri"
+            ;;
+          A|M|T)
+            source_file="$(Build.SourcesDirectory)/$file_path"
+
+            if [[ ! -f "$source_file" ]]; then
+              echo "ERROR: Source file does not exist: $source_file"
+              exit 1
+            fi
+
+            echo "Uploading: $file_path -> $target_uri"
+            gcloud storage cp "$source_file" "$target_uri"
+            ;;
+          *)
+            echo "ERROR: Unsupported Git status '$status' for $file_path"
+            exit 1
+            ;;
+        esac
+
+        PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
+      done < "$CHANGES_FILE"
+
+      if (( PROCESSED_COUNT == 0 )); then
+        echo "No changed DAG or plugin files detected."
+      else
+        echo "Successfully processed $PROCESSED_COUNT changed files."
+      fi
+
+      # UPDATE THE CHECKPOINT ONLY AFTER ALL FILE OPERATIONS SUCCEED
+      printf '%s\n' "$DEPLOY_COMMIT" > "$STATE_FILE"
+      gcloud storage cp "$STATE_FILE" "$STATE_URI"
+
+      echo "Deployment checkpoint updated: $DEPLOY_COMMIT"
+    displayName: 'Deploy Changed DAG and Plugin Files'
+```
+
+### What the new template does
+
+It compares the current commit against a checkpoint stored separately for each environment:
+
+```
+gs://<bucket>/_deployment_state/sandbox/last_successful_commit.txt
+gs://<bucket>/_deployment_state/test/last_successful_commit.txt
+gs://<bucket>/_deployment_state/prod/last_successful_commit.txt
+```
+
+This prevents a deployment from relying exclusively on `HEAD~1`. If a deployment fails partway through, its checkpoint is not advanced, so the next run can retry the changes.
+
+Initial deployment warning: if no checkpoint exists, the template uses the empty-tree hash and uploads the currently tracked DAG and plugin files. It does not automatically delete old GCS files that were removed from Git before that initial checkpoint existed. Check existing bucket contents and establish a suitable baseline before rolling this out to an existing TEST or PROD bucket.
+
+## 2. Main pipeline — `azure-pipeline-controlled.yml`
+
+Use this in your existing main pipeline file. It retains the three stages and their sequence, replaces the PR diff logic, and adds Airflow DAG parsing validation to your Docker-based test step.
+
+```
+trigger:
+  branches:
+    include:
+      - main
+
+# GitHub repositories can use this PR trigger.
+# For Azure Repos Git, configure PR validation through the main branch's
+# Build Validation branch policy instead.
+
+pr:
+  branches:
+    include:
+      - '*'
+
+variables:
+  # TEMPORARY VALIDATION CONFIGURATION:
+  # These are the values from your latest YAML. All three stages currently
+  # point to the sandbox bucket and non-production key.
+  # Set the correct distinct bucket/key values before real promotion.
+
+  - name: SANDBOX_BUCKET
+    value: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+  - name: SANDBOX_GCP_KEY_FILE
+    value: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+
+  - name: TEST_BUCKET
+    value: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+  - name: TEST_GCP_KEY_FILE
+    value: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+
+  - name: REGISTRY_URL_TEST
+    value: 'northamerica-northeast1-docker.pkg.dev'
+  - name: IMAGE_PATH_TEST
+    value: 'prj-n-cdp-ingestion/airflow/custom-airflow'
+
+  - name: PROD_BUCKET
+    value: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+  - name: PROD_GCP_KEY_FILE
+    value: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+
+stages:
+
+  # PR VALIDATION, UNIT TESTS AND AIRFLOW DAG PARSING
+  - stage: unit_tests
+    displayName: 'PR Validation & Unit Tests'
+    jobs:
+      - job: manual_container_test
+        displayName: 'Validate Changes & Run Tests'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          # COMPARE PR AGAINST ITS TARGET BRANCH
+          - script: |
+              set -euo pipefail
+
+              echo "Build reason: $(Build.Reason)"
+              echo "Source branch: $(Build.SourceBranch)"
+
+              if [[ "$(Build.Reason)" == "PullRequest" ]]; then
+                TARGET_BRANCH="$(System.PullRequest.TargetBranch)"
+
+                if [[ -z "$TARGET_BRANCH" ]]; then
+                  echo "ERROR: PR target branch is unavailable."
+                  exit 1
+                fi
+
+                echo "PR target branch: $TARGET_BRANCH"
+
+                git fetch --no-tags origin "$TARGET_BRANCH"
+                BASE_COMMIT="$(git merge-base HEAD FETCH_HEAD)"
+
+                echo "Comparison base: $BASE_COMMIT"
+
+                echo ""
+                echo "All changed files:"
+                git diff --name-status --no-renames "$BASE_COMMIT" HEAD
+
+                echo ""
+                echo "DAG changes:"
+                git diff --name-status --no-renames "$BASE_COMMIT" HEAD -- DAGS/
+
+                echo ""
+                echo "Plugin changes:"
+                git diff --name-status --no-renames "$BASE_COMMIT" HEAD -- plugins/
+              else
+                echo "Not a PR build."
+                echo "Deployment changes will be calculated from each environment's checkpoint."
+              fi
+            displayName: 'Validate PR Changes'
+
+          # AUTHENTICATE TO ARTIFACT REGISTRY
+          - task: DownloadSecureFile@1
+            name: test_key
+            inputs:
+              secureFile: '$(TEST_GCP_KEY_FILE)'
+            displayName: 'Download GCP Service Account Key'
+
+          - script: |
+              set -euo pipefail
+
+              cat "$(test_key.secureFilePath)" | docker login \
+                -u _json_key \
+                --password-stdin \
+                "https://$(REGISTRY_URL_TEST)"
+
+              docker pull "$(REGISTRY_URL_TEST)/$(IMAGE_PATH_TEST):latest"
+            displayName: 'Login and Pull TEST Airflow Image'
+
+          # RUN UNIT TESTS AND AIRFLOW DAG PARSING IN THE SAME CONTAINER
+          - script: |
+              set -euo pipefail
+
+              docker run --rm \
+                -v "$(Build.SourcesDirectory):/workspace" \
+                -w /workspace \
+                -e PYTHONPATH=/workspace:/workspace/plugins \
+                -e PYTEST_ADDOPTS="-p no:cacheprovider" \
+                -e AIRFLOW_HOME=/tmp/airflow \
+                -e AIRFLOW__CORE__DAGS_FOLDER=/workspace/DAGS \
+                -e AIRFLOW__CORE__PLUGINS_FOLDER=/workspace/plugins \
+                -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
+                "$(REGISTRY_URL_TEST)/$(IMAGE_PATH_TEST):latest" \
+                bash -c "set -e; pip install -r requirements.txt -q && pytest Tests/ -v && python -c \"from airflow.models import DagBag; bag = DagBag(dag_folder='/workspace/DAGS', include_examples=False); print('DAG import errors:', bag.import_errors); raise SystemExit(1 if bag.import_errors else 0)\""
+            displayName: 'Run Pytest and Validate Airflow DAGs'
+
+
+  # DEPLOY TO SANDBOX AFTER SUCCESSFUL VALIDATION
+  - stage: deploy_sandbox
+    displayName: 'Deploy Airflow to SANDBOX'
+    dependsOn: unit_tests
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    lockBehavior: sequential
+
+    jobs:
+      - deployment: sync_to_sandbox
+        displayName: 'Deploy Changed Files to SANDBOX'
+        environment: 'Sandbox - Airflow DAGS'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  fetchDepth: 0
+
+                - template: template_01.yml
+                  parameters:
+                    deployment_environment: 'sandbox'
+                    airflow_bucket: $(SANDBOX_BUCKET)
+                    gcp_secure_file: $(SANDBOX_GCP_KEY_FILE)
+
+
+  # DEPLOY TO TEST ONLY AFTER SANDBOX SUCCEEDS
+  - stage: deploy_test
+    displayName: 'Deploy Airflow to TEST'
+    dependsOn: deploy_sandbox
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    lockBehavior: sequential
+
+    jobs:
+      - deployment: sync_to_test
+        displayName: 'Deploy Changed Files to TEST'
+        environment: 'Test - Airflow DAGS'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  fetchDepth: 0
+
+                - template: template_01.yml
+                  parameters:
+                    deployment_environment: 'test'
+                    airflow_bucket: $(TEST_BUCKET)
+                    gcp_secure_file: $(TEST_GCP_KEY_FILE)
+
+
+  # DEPLOY TO PROD ONLY AFTER TEST SUCCEEDS
+  - stage: deploy_prod
+    displayName: 'Deploy Airflow to PROD'
+    dependsOn: deploy_test
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    lockBehavior: sequential
+
+    jobs:
+      - deployment: sync_to_prod
+        displayName: 'Deploy Changed Files to PROD'
+        environment: 'Prod - Airflow DAGS'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  fetchDepth: 0
+
+                - template: template_01.yml
+                  parameters:
+                    deployment_environment: 'prod'
+                    airflow_bucket: $(PROD_BUCKET)
+                    gcp_secure_file: $(PROD_GCP_KEY_FILE)
+```
+
+## 3. Before running the updated pipeline
+
+There are four things to verify.
+
+1\. Configure PR validation in Azure DevOps. If this repository is Azure Repos Git, go to Repos → Branches → `main` → Branch policies → Build Validation and make this pipeline a required validation build. Also configure the required reviewer approvals. The YAML `pr:` block alone does not trigger PR validation for Azure Repos Git.&#x20;
+
+[image](https://www.google.com/s2/favicons?domain=https://learn.microsoft.com\&sz=32)
+
+Microsoft Learn
+
++1
+
+
+
+2\. Configure deployment locks. In each Azure DevOps environment—`Sandbox - Airflow DAGS`, `Test - Airflow DAGS` and `Prod - Airflow DAGS`—add an Exclusive lock check. The `lockBehavior: sequential` setting then makes runs queue sequentially for that protected resource.&#x20;
+
+[image](https://www.google.com/s2/favicons?domain=https://learn.microsoft.com\&sz=32)
+
+Microsoft Learn
+
+
+
+3\. Validate the initial deployment checkpoint. Before running against existing TEST or PROD buckets, confirm how their current contents correspond to Git history. A missing checkpoint causes the template to upload all currently tracked DAGs and plugins, but it will not automatically clean up files that were deleted from Git before the checkpoint was created.
+
+4\. Correct the environment variables before real promotion. In the supplied configuration, every stage points to the same sandbox bucket. The TEST and PROD stages would therefore modify the sandbox bucket too. Use the verified, separate bucket names and service-account keys before enabling genuine promotion. Until then, run only controlled validation and avoid concurrent pipeline runs.
+
+### Recommended test sequence
+
+| Test                                       | Expected result                                                         |
+| ------------------------------------------ | ----------------------------------------------------------------------- |
+| PR contains changes across several commits | Change report detects all changes relative to the target branch.        |
+| Add or modify a DAG/plugin                 | Only the changed file is uploaded.                                      |
+| Delete a DAG/plugin                        | Its GCS object is removed.                                              |
+| Rename or move a file between folders      | Old object is removed; new file is uploaded to the correct destination. |
+| Introduce an Airflow DAG import error      | Validation fails, so deployment stages do not run.                      |
+| Force a deployment operation to fail       | The environment checkpoint remains unchanged.                           |
+| Run successive deployments                 | Each environment compares against its own last successful deployment.   |
+
+One final note: the updated code checks DAG import errors using Airflow's `DagBag` in the TEST image. Confirm that the image and its configuration support parsing your DAGs in this isolated test environment; DAGs that require external services or metadata during module import may need test fixtures or mocks.

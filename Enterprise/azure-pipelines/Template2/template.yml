@@ -1,0 +1,143 @@
+parameters:
+  - name: airflow_bucket
+    type: string
+  - name: gcp_secure_file
+    type: string
+  - name: deployment_environment
+    type: string
+
+steps:
+  # GCP AUTHENTICATION
+  - task: DownloadSecureFile@1
+    name: google_credentials
+    inputs:
+      secureFile: '${{ parameters.gcp_secure_file }}'
+    displayName: 'Download GCP Service Account Key'
+
+  - script: |
+      set -euo pipefail
+      chmod 600 "$(google_credentials.secureFilePath)"
+      gcloud auth activate-service-account --key-file="$(google_credentials.secureFilePath)"
+    displayName: 'Authenticate with GCP'
+
+  # DEPLOY CHANGED DAG AND PLUGIN FILES
+  - script: |
+      set -euo pipefail
+
+      BUCKET_URI="gs://${{ parameters.airflow_bucket }}"
+      ENVIRONMENT="${{ parameters.deployment_environment }}"
+      DEPLOY_COMMIT="$(git rev-parse HEAD)"
+      STATE_URI="$BUCKET_URI/_deployment_state/$ENVIRONMENT/last_successful_commit.txt"
+
+      case "$ENVIRONMENT" in
+        sandbox|test|prod) ;;
+        *)
+          echo "ERROR: Unsupported deployment environment: $ENVIRONMENT"
+          exit 1
+          ;;
+      esac
+
+      CHANGES_FILE="$(mktemp)"
+      STATE_FILE="$(mktemp)"
+      trap 'rm -f "$CHANGES_FILE" "$STATE_FILE"' EXIT
+
+      echo "Environment: $ENVIRONMENT"
+      echo "Target bucket: $BUCKET_URI"
+      echo "Deployment commit: $DEPLOY_COMMIT"
+
+      # READ THE LAST SUCCESSFULLY DEPLOYED COMMIT
+      if BASE_COMMIT="$(gcloud storage cat "$STATE_URI" 2>/dev/null | tr -d '\r\n')" && [[ -n "$BASE_COMMIT" ]]; then
+        echo "Last successfully deployed commit: $BASE_COMMIT"
+
+        if ! git cat-file -e "${BASE_COMMIT}^{commit}" 2>/dev/null; then
+          echo "ERROR: The previous deployment commit is unavailable in Git history."
+          echo "Cannot safely calculate the deployment changes."
+          exit 1
+        fi
+      else
+        echo "WARNING: No deployment checkpoint exists for $ENVIRONMENT."
+        echo "Using an empty Git tree for the initial deployment."
+
+        BASE_COMMIT="$(git hash-object -t tree /dev/null)"
+      fi
+
+      # DISABLE RENAME DETECTION: RENAMES BECOME DELETE + ADD
+      # -z PRESERVES FILENAMES CONTAINING SPACES OR NEWLINES
+      git diff --name-status --no-renames -z \
+        "$BASE_COMMIT" "$DEPLOY_COMMIT" -- DAGS/ plugins/ > "$CHANGES_FILE"
+
+      # DELETE AN OBJECT, TOLERATING AN ALREADY-ABSENT OBJECT
+      delete_object() {
+        local uri="$1"
+
+        if gcloud storage ls "$uri" >/dev/null 2>&1; then
+          echo "Deleting: $uri"
+          gcloud storage rm "$uri" --quiet
+        else
+          # Confirm the bucket is accessible before treating the object as absent.
+          gcloud storage ls "$BUCKET_URI/" >/dev/null
+          echo "INFO: Object is already absent: $uri"
+        fi
+      }
+
+      PROCESSED_COUNT=0
+
+      # PARSE NUL-DELIMITED GIT STATUS/PATH PAIRS
+      while IFS= read -r -d '' status; do
+        if ! IFS= read -r -d '' file_path; then
+          echo "ERROR: Incomplete Git change record."
+          exit 1
+        fi
+
+        case "$file_path" in
+          DAGS/*)
+            target_folder="dags"
+            relative_path="${file_path#DAGS/}"
+            ;;
+          plugins/*)
+            target_folder="plugins"
+            relative_path="${file_path#plugins/}"
+            ;;
+          *)
+            continue
+            ;;
+        esac
+
+        target_uri="$BUCKET_URI/$target_folder/$relative_path"
+
+        case "$status" in
+          D)
+            delete_object "$target_uri"
+            ;;
+          A|M|T)
+            source_file="$(Build.SourcesDirectory)/$file_path"
+
+            if [[ ! -f "$source_file" ]]; then
+              echo "ERROR: Source file does not exist: $source_file"
+              exit 1
+            fi
+
+            echo "Uploading: $file_path -> $target_uri"
+            gcloud storage cp "$source_file" "$target_uri"
+            ;;
+          *)
+            echo "ERROR: Unsupported Git status '$status' for $file_path"
+            exit 1
+            ;;
+        esac
+
+        PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
+      done < "$CHANGES_FILE"
+
+      if (( PROCESSED_COUNT == 0 )); then
+        echo "No changed DAG or plugin files detected."
+      else
+        echo "Successfully processed $PROCESSED_COUNT changed files."
+      fi
+
+      # UPDATE THE CHECKPOINT ONLY AFTER ALL FILE OPERATIONS SUCCEED
+      printf '%s\n' "$DEPLOY_COMMIT" > "$STATE_FILE"
+      gcloud storage cp "$STATE_FILE" "$STATE_URI"
+
+      echo "Deployment checkpoint updated: $DEPLOY_COMMIT"
+    displayName: 'Deploy Changed DAG and Plugin Files'
