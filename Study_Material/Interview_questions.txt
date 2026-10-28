@@ -1,0 +1,920 @@
+# Resume-Based Interview Question Bank — BI Developer / Data Engineer
+
+Your resume positions you as a professional with 10 years of experience, moving from database development and BI into cloud data engineering and platform modernization. Interviewers will likely test whether you can explain the technologies listed, defend your project contributions, solve production scenarios, and make design decisions—not just define terminology.
+
+I'll organize this around your actual resume, starting with the questions most likely to expose gaps. This is a comprehensive question bank, not a claim that every interviewer will ask every question.
+
+Important: Your resume uses strong phrases such as “architected end-to-end,” “led the migration,” “boost query performance,” “zero post-launch downtime,” and “8% increase in profitability.” Be prepared to explain your specific contribution, implementation, evidence, and results for each. Don't claim ownership of work you only supported.
+
+## 1. Highest-priority questions
+
+These are the questions I'd prepare first because they connect directly to your recent Canam experience and senior Data Engineer roles.
+
+### Preparation tracker
+
+0 of 30 prepared
+
+1\. Introduction and project ownership
+
+Tell me about yourself.
+
+Walk me through your current Canam project end to end.
+
+What exactly is your role in the Datafinity project?
+
+Explain the architecture of your data platform from source to Tableau.
+
+What was the most challenging technical problem you solved?
+
+Which components did you develop yourself, and which were handled by other team members?
+
+2\. Python, Airflow and ingestion
+
+How does your full-load ingestion process work?
+
+How do you implement incremental or streaming ingestion?
+
+How do you make a pipeline idempotent?
+
+How do you handle retries, duplicates and late-arriving data?
+
+How do you design an Airflow DAG and manage dependencies?
+
+How do you troubleshoot a failed production pipeline?
+
+3\. Snowflake, GCS and Pub/Sub
+
+Explain how GCS data reaches Snowflake in your architecture.
+
+What is the difference between a Snowflake stage and Snowpipe?
+
+How does event-driven ingestion work with Pub/Sub?
+
+How do you handle schema changes and malformed files?
+
+How do you optimize Snowflake query and warehouse cost?
+
+How do you prevent duplicate ingestion or data loss?
+
+4\. dbt and data modeling
+
+Explain your Landing → Prepare → Normalize → Schematize → Marketplace layers.
+
+What is the difference between a dbt model, source, test, snapshot and seed?
+
+How do you manage dependencies between models?
+
+How do you test data quality and freshness?
+
+How would you optimize a slow dbt model?
+
+How do you handle incremental models and schema changes?
+
+5\. Architecture and production scenarios
+
+Why did you choose batch, streaming or micro-batching?
+
+How would you design a platform for 100 source systems?
+
+How do you monitor data freshness, completeness and correctness?
+
+How would you recover from a partial pipeline failure?
+
+How do you secure sensitive data and manage service identities?
+
+How would you reduce pipeline latency and cloud costs?
+
+## 2. Tell me about yourself and career progression
+
+Prepare a clear two-minute introduction and concise answers to these follow-ups.
+
+1. Tell me about yourself.
+2. Walk me through your career from CGI to TCS to Canam.
+3. How has your role evolved from System Engineer to Data Analyst to BI Developer/Data Engineer?
+4. Why did you move from database development to business intelligence?
+5. Why did you move from TCS to Canam?
+6. What are your strongest technical skills?
+7. What is your biggest technical achievement?
+8. What are your strengths and weaknesses?
+9. What kind of projects do you want to work on next?
+10. Why are you looking for a new opportunity?
+11. Why should we hire you for a Senior Data Engineer role?
+12. How much of your experience is hands-on development versus production support?
+13. How do you work with architects, product owners, analysts and business stakeholders?
+14. Have you mentored colleagues or conducted knowledge-transfer sessions?
+15. What is the most difficult technical concept you have learned recently?
+
+## 3. Canam — Datafinity project deep dive
+
+Expect the interviewer to spend significant time on your latest and most technically relevant project.
+
+### Architecture and ownership
+
+1. Explain the Datafinity project to someone unfamiliar with it.
+2. What business problem was the modernization initiative solving?
+3. What was the architecture before modernization?
+4. What is the target architecture?
+5. Draw the complete architecture on a whiteboard.
+6. What are the source systems, and what type of data comes from each?
+7. Why do you use GCS as a landing area?
+8. Why do you load data into Snowflake?
+9. Why is dbt used instead of transforming everything in Python or SQL scripts?
+10. Where does Tableau fit into the architecture?
+11. Which components did you personally design, develop, test and deploy?
+12. What were the major technical challenges?
+13. How do you estimate pipeline development effort?
+14. What trade-offs did you make in the architecture?
+15. If you rebuilt the platform today, what would you change?
+
+### Source-system ingestion
+
+Your resume names SQL Server, Oracle and Progress in your skills, but the bullets do not describe each connector in detail.
+
+16. How do you connect Python to SQL Server, Oracle and Progress?
+17. How do authentication and connection management differ between sources?
+18. How do you handle a source database that is unavailable?
+19. How do you extract millions of rows without overwhelming the source?
+20. How do you implement pagination or chunked extraction?
+21. How do you handle nulls, data types and encoding differences?
+22. How do you extract tables with no reliable update timestamp?
+23. How do you handle deletes in the source system?
+24. How do you identify changes when the source does not support CDC?
+25. How do you validate source-to-target completeness?
+26. What happens if extraction succeeds but the upload to GCS fails?
+27. How would you resume a failed load without starting from scratch?
+28. How do you prevent two overlapping jobs from processing the same source table?
+
+### Full load versus incremental and streaming ingestion
+
+29. What is the difference between full load, incremental load, CDC and streaming?
+30. Which ingestion method do you use for different source systems, and why?
+31. How do you implement an initial full load?
+32. How do you implement incremental extraction?
+33. What is a watermark, and where do you store it?
+34. What problems can occur when a timestamp is used as a watermark?
+35. How do you handle late-arriving and out-of-order records?
+36. How do you process updates and deletes?
+37. How do you reconcile incremental data with a full reload?
+38. What is at-least-once versus at-most-once delivery?
+39. What does exactly-once processing mean, and what are its practical limitations?
+40. How do you make a pipeline idempotent?
+41. When would you choose micro-batching over continuous streaming?
+42. What would you do if the source generates data faster than the destination can consume it?
+
+## 4. Python for data engineering
+
+Since Python is explicitly listed in your skills and used at Canam, expect both coding and implementation questions.
+
+### Python fundamentals
+
+1. What are lists, tuples, sets and dictionaries?
+2. What is the difference between mutable and immutable objects?
+3. What are list comprehensions and generator expressions?
+4. What is the difference between an iterator and a generator?
+5. How does exception handling work?
+6. How do you create custom exceptions?
+7. What is the difference between a module and a package?
+8. How do virtual environments help manage dependencies?
+9. How do you read environment variables and manage configuration?
+10. What are decorators, and have you used them?
+11. What is the difference between multiprocessing, multithreading and asynchronous programming?
+12. How do you profile Python code that is running slowly?
+
+### Data pipeline implementation
+
+13. How would you write a reusable function to extract a table from a database?
+14. How would you process a large dataset without loading it all into memory?
+15. How do you write structured logs?
+16. How do you implement retries with exponential backoff?
+17. How do you manage database connections and ensure they are closed?
+18. How do you validate a CSV or JSON file before loading it?
+19. How do you process files that arrive with different schemas?
+20. How would you design a configurable ingestion framework for 100 tables?
+21. How do you test Python data pipelines?
+22. What is the difference between unit testing and integration testing?
+23. How do you mock an external database or cloud service in a test?
+24. How do you handle secrets without hardcoding credentials?
+25. How do you package and deploy Python dependencies for Airflow?
+
+### Python coding exercises to practise
+
+- Find duplicate records in a list of dictionaries.
+- Read a large CSV in chunks and calculate aggregates.
+- Compare source and target record counts.
+- Merge two datasets using a business key.
+- Flatten nested JSON.
+- Parse timestamps and handle invalid values.
+- Implement retry logic for an API call.
+- Write an idempotent file-processing function.
+- Find missing dates in a time series.
+- Implement incremental loading using a watermark.
+- Write a function to validate required columns and data types.
+- Identify inserted, updated and deleted records by comparing source and target.
+
+## 5. Apache Airflow
+
+Your resume mentions full-load and streaming ingestion workflows orchestrated with Airflow. Be ready to explain the implementation rather than only the concepts.
+
+### Fundamentals and DAG design
+
+1. What is Apache Airflow, and why did you use it?
+2. What is a DAG?
+3. What are tasks, operators, sensors and hooks?
+4. What is the difference between an operator and a sensor?
+5. What are `start_date`, `schedule`, `catchup` and `max_active_runs`?
+6. What are logical date and data interval?
+7. How do task dependencies work?
+8. What are trigger rules?
+9. How do retries, retry delays and execution timeouts work?
+10. What are pools, queues and concurrency limits?
+11. What is the difference between scheduled and manually triggered DAG runs?
+12. How do you design reusable DAGs for multiple tables?
+13. How do you pass data between tasks?
+14. Why should XCom not be used to transfer large datasets?
+15. How do you implement dynamic task mapping?
+16. How do you avoid duplicate runs and overlapping extraction jobs?
+17. How do you backfill historical data safely?
+
+### Production and troubleshooting
+
+18. What happens when an Airflow worker fails during task execution?
+19. A task keeps failing after retries. How do you investigate it?
+20. How do you distinguish an application failure from an infrastructure failure?
+21. How do you monitor task duration, failures and data freshness?
+22. How do you manage connections, variables and secrets?
+23. How do you handle a DAG that takes longer as data volume grows?
+24. How do you deploy DAG changes safely?
+25. How do you test a DAG before deploying it to production?
+26. What happens when the scheduler is unavailable?
+27. How would you recover from a failed task without rerunning successful upstream tasks?
+28. What are the risks of using local files between distributed tasks?
+
+## 6. GCP, GCS and Pub/Sub
+
+### Google Cloud Storage
+
+1. What is GCS, and why use it as a data lake or landing zone?
+2. What is the difference between a bucket and an object?
+3. How do you organize buckets, folders/prefixes and file naming?
+4. How do you manage object versions, retention and lifecycle policies?
+5. How do you secure GCS access?
+6. How do you handle large files and partial uploads?
+7. How do you prevent a downstream process from reading an incomplete file?
+8. How do you manage partitioned data in cloud storage?
+9. How would you handle thousands of small files?
+10. What is the difference between GCS and BigQuery?
+
+### Pub/Sub
+
+11. What are topics, subscriptions, publishers and subscribers?
+12. How does a GCS event trigger downstream ingestion?
+13. What is the difference between push and pull subscriptions?
+14. What are acknowledgements and acknowledgement deadlines?
+15. How does message redelivery work?
+16. How do you handle duplicate notifications?
+17. What is a dead-letter topic?
+18. How would you handle a subscriber that cannot keep up with incoming messages?
+19. How do you monitor message backlog and processing latency?
+20. How do you make a subscriber safe to retry?
+
+### Identity and security
+
+21. What is a service account?
+22. What is the principle of least privilege?
+23. How would you secure credentials used by Airflow?
+24. What are Workload Identity and service-account impersonation?
+25. How would you investigate a permission-denied error between GCS and another service?
+
+## 7. Snowflake and Snowpipe
+
+### Core Snowflake concepts
+
+1. Explain Snowflake's architecture.
+2. What are virtual warehouses, databases, schemas and tables?
+3. How are storage and compute separated?
+4. What are micro-partitions?
+5. What is pruning, and how does it improve query performance?
+6. What are clustering keys, and when might you use them?
+7. What is the difference between a standard table, transient table and temporary table?
+8. What is a warehouse auto-suspend and auto-resume setting?
+9. How do you control Snowflake cost?
+10. What is Time Travel?
+11. What is zero-copy cloning?
+12. How do roles and grants work in Snowflake?
+
+### Stages, file formats and Snowpipe
+
+13. What is the difference between an internal and external stage?
+14. What is the difference between a stage and a file format?
+15. What is the difference between `COPY INTO` and Snowpipe?
+16. How does Snowpipe ingest files automatically?
+17. What is the role of cloud event notifications in Snowpipe?
+18. How does the GCS/Pub/Sub integration fit into your project?
+19. How do you troubleshoot files that have not been loaded?
+20. How do you inspect load history?
+21. What happens when the same file is presented again?
+22. How do you handle malformed records?
+23. How do you implement schema evolution?
+24. What are Snowflake streams and tasks, and when might they be useful?
+25. How would you load semi-structured JSON into Snowflake?
+26. How would you design a safe reprocessing strategy?
+
+### Performance and cost
+
+27. A Snowflake query is slow. How do you investigate?
+28. How do you use Query Profile?
+29. When would you increase warehouse size versus optimize SQL?
+30. What causes warehouse queuing?
+31. How do you reduce unnecessary scans?
+32. How do you identify expensive or frequently executed queries?
+33. How do you decide between batch loading and Snowpipe?
+34. How would you design Snowflake access for development, test and production?
+
+## 8. dbt and transformation architecture
+
+Your named layers—Landing, Prepare, Normalize, Schematize and Marketplace—are likely to invite questions about both their purpose and their implementation.
+
+### dbt fundamentals
+
+1. What is dbt, and why is it useful in a modern data stack?
+2. What is the difference between ETL and ELT?
+3. What are models, sources, seeds, snapshots and macros?
+4. What does `ref()` do?
+5. What does `source()` do?
+6. How does dbt build the dependency graph?
+7. What is the difference between a view, table and incremental model?
+8. What are schema tests and data tests?
+9. How do you use freshness checks?
+10. What are Jinja and macros?
+11. What are packages, and how do you manage dependencies?
+12. How do you generate and use dbt documentation?
+13. How do you select a subset of models to run?
+14. How do you use dbt in CI/CD?
+
+### Your five-layer model
+
+15. Why did you choose these five layers?
+16. What transformations happen in each layer?
+17. How is Landing different from Prepare?
+18. Why are Normalize and Schematize separate?
+19. What belongs in Marketplace?
+20. How do you handle business rules and reusable transformations?
+21. How do you prevent transformation logic from being duplicated?
+22. How do you trace a Tableau metric back to its source?
+23. How do you validate the row counts and business totals across layers?
+24. How do you handle schema drift?
+25. How would you change a model without breaking downstream dashboards?
+
+### Incremental processing and performance
+
+26. How does an incremental dbt model work?
+27. What is a `unique_key`, and what happens if it is not unique?
+28. How do you process late-arriving updates?
+29. When would you use a merge strategy?
+30. How do you handle deleted source records?
+31. How do you optimize an incremental model?
+32. How do you identify which models consume the most warehouse resources?
+33. What is the difference between a full refresh and incremental run?
+34. How do you test a breaking change before production deployment?
+35. What would you do if a dbt model succeeds but its data is incorrect?
+
+## 9. Terraform, Azure DevOps and CI/CD
+
+These questions test whether you understand how the infrastructure and deployment process work, not just how to run a pipeline.
+
+### Terraform
+
+1. What is Infrastructure as Code?
+2. Why use Terraform instead of creating resources manually?
+3. What are providers, resources, data sources, variables and outputs?
+4. What is a Terraform state file?
+5. Why should state be stored remotely?
+6. What is state locking?
+7. What is the difference between `terraform plan` and `terraform apply`?
+8. What is the difference between a resource and a data source?
+9. What are modules, and how do you reuse them?
+10. What is the difference between `count` and `for_each`?
+11. How do you manage different environments?
+12. How do you handle secrets in Terraform?
+13. What happens if someone manually changes a resource in the cloud?
+14. How do you detect and correct configuration drift?
+15. How do you import an existing resource into Terraform?
+16. What happens if an apply partially fails?
+17. How do you prevent accidental deletion of production resources?
+18. How would you roll back a bad infrastructure change?
+
+### Azure DevOps and CI/CD
+
+19. Explain your CI/CD pipeline from code commit to deployment.
+20. What is the difference between continuous integration and continuous deployment?
+21. What are Azure Repos and Azure Pipelines?
+22. How do pull requests and branch policies help control changes?
+23. What is a pipeline artifact?
+24. How do you manage environment-specific configuration?
+25. How do you store and retrieve cloud credentials securely?
+26. What is the difference between a build and a release/deployment stage?
+27. How do you deploy Airflow DAGs and dbt changes?
+28. How do you run automated tests before deployment?
+29. How do you handle a failed deployment?
+30. How do you promote the same code through development, test and production?
+31. How do you ensure that the code tested is the code deployed?
+32. How would you implement approval gates for production?
+33. How do you protect sensitive values in pipeline logs?
+34. How do you investigate a pipeline that passes in development but fails in production?
+
+## 10. SQL, databases and query optimization
+
+SQL is a core skill throughout your resume. At your experience level, expect complex query-writing exercises as well as execution-plan discussions.
+
+### SQL fundamentals and advanced SQL
+
+1. Explain the difference between `WHERE` and `HAVING`.
+2. Explain inner, left, right, full outer and cross joins.
+3. What is the difference between `UNION` and `UNION ALL`?
+4. How do `NULL` values behave in comparisons?
+5. What is a CTE?
+6. What is a recursive CTE?
+7. What are window functions?
+8. Explain `ROW_NUMBER`, `RANK` and `DENSE_RANK`.
+9. How do `LEAD` and `LAG` work?
+10. What is the difference between `GROUP BY` and a window function?
+11. What are correlated subqueries?
+12. What is the difference between `EXISTS` and `IN`?
+13. How do you remove duplicates while retaining the latest record?
+14. How do you find the second-highest salary or value?
+15. How do you calculate running totals and rolling averages?
+16. How do you identify gaps in sequential dates or IDs?
+17. How do you implement an upsert?
+18. How do you compare two tables and identify inserts, updates and deletions?
+19. How do you find customers with no transactions?
+20. How would you implement a slowly changing dimension using SQL?
+
+### Performance tuning
+
+21. How do you investigate a slow SQL query?
+22. What is an execution plan?
+23. What is the difference between a clustered and nonclustered index in SQL Server?
+24. When can an index make a query slower?
+25. What is a covering index?
+26. What is a composite index, and why does column order matter?
+27. What is a table scan versus an index seek?
+28. What is a sargable predicate?
+29. Why can applying a function to a filtered column hurt performance?
+30. What are statistics and how do they affect the optimizer?
+31. What are blocking and deadlocks?
+32. What is transaction isolation?
+33. How do you identify and tune expensive joins?
+34. When can partitioning help?
+35. How would you investigate a query that suddenly became slow after a deployment?
+
+### SQL Server, Oracle and Progress
+
+36. What SQL dialect differences have you encountered?
+37. How do stored procedures differ from functions?
+38. How do transactions and error handling work in your database environments?
+39. How do you manage privileges and database security?
+40. How do you troubleshoot database connectivity issues?
+41. What are bind variables, and how can they help Oracle performance?
+42. How do you manage schema changes across source databases?
+43. What challenges arise when moving data from a relational database to Snowflake?
+44. How do you handle differing timestamp, decimal and string representations across databases?
+
+## 11. Tableau, Power BI and business intelligence
+
+Your BI background is an advantage, but you should be prepared to explain how dashboards depend on reliable, well-designed data models.
+
+### Tableau
+
+1. Explain the difference between a live connection and an extract.
+2. What are dimensions and measures?
+3. What is the difference between a discrete and continuous field?
+4. What are relationships versus joins in Tableau?
+5. What are table calculations and level-of-detail expressions?
+6. Explain FIXED, INCLUDE and EXCLUDE LOD expressions.
+7. How do filters work, and what is the order of operations?
+8. How do you optimize a slow dashboard?
+9. What are extracts, and when do you refresh them?
+10. How do you implement row-level security?
+11. How do you validate dashboard numbers against SQL results?
+12. How do you handle many-to-many relationships in reporting data?
+13. How do you decide whether logic belongs in Tableau, dbt or the database?
+14. What does “boost query performance” mean in your Canam experience, and how did you measure it?
+
+### Power BI and DAX
+
+15. What is the difference between a measure and a calculated column?
+16. What is row context versus filter context?
+17. What does `CALCULATE()` do?
+18. What is context transition?
+19. What is the difference between `SUM()` and `SUMX()`?
+20. What is a star schema, and why is it useful in Power BI?
+21. What is the difference between Import and DirectQuery?
+22. What is a relationship's cardinality?
+23. How do you handle bidirectional filtering?
+24. How do you implement row-level security?
+25. How do you troubleshoot a slow Power BI report?
+26. How do you handle incremental refresh?
+27. How do you validate DAX measures against SQL aggregates?
+28. How would you design a sales or profitability dashboard from raw source tables?
+
+### Business and stakeholder questions
+
+29. How do you convert a vague business request into dashboard requirements?
+30. How do you decide which KPIs to show?
+31. How do you handle conflicting KPI definitions between departments?
+32. How do you validate metrics with business users?
+33. How do you measure dashboard adoption or business value?
+34. How do you manage changing requirements close to a release?
+
+## 12. TCS — BigQuery migration and reporting automation
+
+Your most important claims here are the migration of 10+ dashboards, zero post-launch downtime and automation of three monthly reporting workflows.
+
+1. Explain the original reporting architecture and the target architecture.
+2. Why was BigQuery chosen?
+3. What did you migrate: data, SQL logic, dashboard connections, or all three?
+4. What were the differences between the source and target SQL dialects?
+5. How did you validate migrated data?
+6. How did you compare record counts and business metrics?
+7. How did you manage differences in date functions, null handling and data types?
+8. How did you test dashboard filters, calculations and totals?
+9. How did you coordinate user acceptance testing?
+10. How did you migrate dashboards without interrupting users?
+11. What does “zero post-launch downtime” mean in measurable terms?
+12. Was there a parallel-run or rollback strategy?
+13. How did you monitor dashboards after go-live?
+14. How did you optimize BigQuery queries and control scanned data?
+15. How did you reduce manual effort in the three reporting workflows?
+16. What did the automation process look like before and after?
+17. How did you schedule the reports?
+18. How did you handle missing data, failed runs and late-arriving records?
+19. How did you notify users when reports were ready or failed?
+20. What measurable time savings or error reduction did the automation achieve?
+
+## 13. CGI — database performance, commercial analytics and production support
+
+### RMS Commercial
+
+1. What business problem did your SQL analysis address?
+2. Which data points or KPIs did you analyze?
+3. How did your analysis support the reported 8% profitability increase?
+4. Was the 8% increase measured directly, or was your work one contributing factor?
+5. What SQL transformations did you perform on raw datasets?
+6. How did you validate data quality before reporting?
+7. How did you design Power BI dashboards for business users?
+8. How did you prevent incorrect or misleading metrics?
+9. How did you explain an unexpected trend to a stakeholder?
+10. What was the most useful insight your analysis produced?
+
+### WFAS and database performance
+
+11. Describe the database architecture you supported.
+12. How did you identify the cause of slow queries?
+13. Explain the query optimization that reduced retrieval time by 36%.
+14. What was the original query bottleneck?
+15. Did you change indexes, joins, filters, query structure or execution plans?
+16. How did you measure the 36% improvement?
+17. Did you compare execution time, logical reads or another metric?
+18. How did you ensure the optimization did not change the results?
+19. What database tables, views, stored procedures or functions did you develop?
+20. How did you manage database users and permissions?
+21. How did you troubleshoot production defects?
+22. Describe a critical production incident you handled.
+23. How did you distinguish a data problem from an application problem?
+24. How did you communicate incident status and resolution to stakeholders?
+25. What did you learn from working with legacy applications?
+
+## 14. Data engineering fundamentals and data architecture
+
+Even when a role focuses on a particular tool, senior interviews often test whether you can make technology-independent design decisions.
+
+### Data modeling and warehousing
+
+1. What is the difference between OLTP and OLAP?
+2. Explain fact tables and dimension tables.
+3. What is a star schema versus a snowflake schema?
+4. What is a surrogate key versus a natural key?
+5. What are slowly changing dimensions Types 1, 2 and 3?
+6. How do you model many-to-many relationships?
+7. What is grain, and why must it be defined before designing a fact table?
+8. What are normalization and denormalization?
+9. What is a data lake, a data warehouse and a lakehouse?
+10. What is the difference between a data mart and an enterprise data warehouse?
+11. What is a medallion architecture?
+12. How would you design a reusable canonical data model across multiple source systems?
+
+### Data quality and governance
+
+13. How do you define data quality?
+14. How would you validate uniqueness, completeness, accuracy and referential integrity?
+15. What is the difference between data validation and data reconciliation?
+16. How do you handle duplicate, missing or invalid records?
+17. What is data lineage, and why is it important?
+18. How do you maintain metadata and business definitions?
+19. How do you classify and protect sensitive data?
+20. What is role-based access control?
+21. How would you design audit logging for a data pipeline?
+22. How would you monitor freshness, volume, schema and distribution anomalies?
+23. How would you design retention and deletion policies?
+24. How do you prevent personally identifiable information from leaking into analytics datasets?
+
+### Architecture and trade-offs
+
+25. Design a data platform for 100 source systems and 10 TB of data.
+26. How would you choose between batch, micro-batch and streaming?
+27. When would you choose Snowflake versus BigQuery?
+28. When would you use GCS versus a warehouse table?
+29. When would you choose a managed service instead of self-hosting?
+30. How do you design for availability, scalability and disaster recovery?
+31. What is the difference between horizontal and vertical scaling?
+32. How do you estimate storage, compute and data-transfer costs?
+33. How would you design a platform for multiple teams and environments?
+34. How do you support schema evolution without breaking downstream consumers?
+35. How would you implement data contracts between source and consumer teams?
+36. How do you balance latency, cost, reliability and maintainability?
+
+## 15. Personal projects — GitHub and technical implementation
+
+Interviewers may open your repositories and ask you to explain the code, architecture and decisions. Be ready to run the project or walk through its README.
+
+### UK Railway Analysis — SQL and Power BI
+
+1. What was the objective of the project?
+2. Where did the dataset come from, and what does it contain?
+3. How large was the dataset?
+4. What data cleaning did you perform?
+5. What were the main SQL queries you wrote?
+6. What KPIs did you calculate?
+7. How did you design the Power BI data model?
+8. What relationships did you create?
+9. Which DAX measures did you write?
+10. What insights did the dashboard reveal?
+11. How did you validate the results?
+12. What would you improve if you rebuilt it?
+
+### Data Engineering Pipeline
+
+13. Walk me through the complete pipeline from source to target.
+14. What is the source system and what is the destination?
+15. Why did you choose your orchestration tool?
+16. How do you handle configuration and credentials?
+17. How do you implement data quality checks?
+18. How do you handle retries and failures?
+19. How do you track pipeline execution?
+20. How do you deploy infrastructure with Terraform?
+21. How do you manage dbt transformations?
+22. How do you test the complete pipeline?
+23. What happens when a task fails halfway through?
+24. How would you make the pipeline production-ready?
+25. What is the difference between your personal project and the platform you worked on at Canam?
+
+## 16. Databricks, Spark, Kafka and other adjacent technologies
+
+Your resume includes a Databricks badge, but does not claim extensive Spark experience. Interviewers may test the distinction.
+
+### Databricks and Spark
+
+1. What is Databricks?
+2. What is Apache Spark?
+3. What is the difference between Pandas and PySpark?
+4. What are transformations and actions in Spark?
+5. What are lazy evaluation and DAG execution?
+6. What is the difference between narrow and wide transformations?
+7. What causes a shuffle?
+8. What are partitions and repartitioning?
+9. What is the difference between `repartition()` and `coalesce()`?
+10. What is a broadcast join?
+11. What causes data skew, and how do you handle it?
+12. What is Delta Lake?
+13. What is the difference between a data lake and a lakehouse?
+14. How would you use Spark for large-scale ingestion and transformation?
+15. How would you explain your actual hands-on Spark experience?
+
+### Kafka and CDC
+
+16. What is Apache Kafka?
+17. What are topics, partitions, brokers and consumer groups?
+18. How does Kafka differ from Google Pub/Sub?
+19. What is an offset?
+20. How do you manage ordering and duplicate events?
+21. What is change data capture (CDC)?
+22. How does log-based CDC differ from timestamp-based incremental extraction?
+23. What are Debezium and Schema Registry?
+24. How do you handle schema evolution in event-driven systems?
+25. When would Kafka be a better choice than batch ingestion?
+
+Interview rule: If you haven't used a technology professionally, say so clearly. You can still explain the concept and describe how you would apply it.
+
+## 17. AI and Generative AI questions
+
+Because you confirmed you currently have zero AI experience, these are awareness and learning questions—not claims about your work history.
+
+1. What is the difference between AI, machine learning and Generative AI?
+2. What is a large language model (LLM)?
+3. What are tokens, prompts and context windows?
+4. What is an LLM API?
+5. What is an embedding?
+6. What is a vector database?
+7. What is retrieval-augmented generation (RAG)?
+8. How is RAG different from fine-tuning?
+9. What is hallucination, and how can it be reduced?
+10. How can a data engineer prepare data for an AI application?
+11. Why are data quality, lineage and access control important for AI?
+12. How could Snowflake, GCP and Python support an AI workflow?
+13. What are the risks of sending confidential company data to an external LLM?
+14. How would you evaluate the accuracy and usefulness of an AI application?
+15. Have you worked on an AI project?
+
+For the last question, answer honestly: you haven't worked on an AI project yet, but you're interested in learning how to connect reliable data pipelines with AI applications. Don't imply professional AI experience you don't have.
+
+## 18. Scenario-based questions
+
+These questions test how you reason through real production problems. You may not have encountered every scenario before; explain your investigation and decision-making process.
+
+Scenario 1
+
+Your pipeline loaded 1 million rows, but the source has 1.05 million. What do you do?
+
+Be ready to discuss extraction windows, filters, pagination, watermark logic, rejected rows, count reconciliation and safe reprocessing.
+
+Scenario 2
+
+A Snowflake bill suddenly doubles. How do you investigate?
+
+Discuss warehouse usage, query history, query profiles, warehouse sizing, concurrency, unnecessary full refreshes and cost controls.
+
+Scenario 3
+
+A source system adds a column and a downstream dashboard breaks. What do you do?
+
+Cover schema-change detection, compatibility, dbt tests, model contracts where applicable, impact analysis and controlled deployment.
+
+Scenario 4
+
+An Airflow task fails after writing half the output. How do you recover?
+
+Explain checkpoints, atomic publication, idempotency, temporary output locations and safe retries.
+
+Scenario 5
+
+The business reports that yesterday's revenue is incorrect.
+
+Trace the metric from dashboard to model, source data and transformation logic. Check freshness, duplicate records, joins, late data and reconciliation.
+
+Scenario 6
+
+You must migrate 100 tables and 20 dashboards with no business interruption.
+
+Discuss inventory, dependency mapping, migration waves, parallel runs, validation, cutover, monitoring and rollback.
+
+Scenario 7
+
+Your pipeline is reliable but too slow. How do you improve it?
+
+First identify the bottleneck, then consider source extraction, file sizes, parallelism, network transfer, warehouse compute and transformation design.
+
+Scenario 8
+
+A production deployment breaks several downstream models.
+
+Explain how you would stop further impact, assess dependencies, roll back or revert the change, recover data and introduce regression tests.
+
+Additional scenarios to practise:
+
+- A source system is unavailable during a scheduled load.
+- A message is delivered twice by a streaming service.
+- A late update changes a record that was already processed.
+- A Terraform state file is unavailable or out of date.
+- A query is fast in development but slow in production.
+- Two dashboards show different values for the same KPI.
+- A stakeholder requests access to sensitive data.
+- A data pipeline must recover after a regional outage.
+- An upstream source changes its timestamp format.
+- A data-quality test fails after the data has already been loaded.
+- A pipeline's backlog grows faster than the consumer can process it.
+- A migration passes technical tests but business users reject the results.
+
+## 19. HR, behavioral and managerial questions
+
+Prepare real examples using the STAR method: Situation, Task, Action, Result.
+
+1. Tell me about a difficult production issue you resolved.
+2. Describe a mistake you made and how you corrected it.
+3. Tell me about a disagreement with a colleague or stakeholder.
+4. How do you handle changing priorities?
+5. Describe a time you had to deliver under a tight deadline.
+6. Tell me about a time you improved an existing process.
+7. How do you communicate technical issues to nontechnical stakeholders?
+8. How do you handle incomplete requirements?
+9. How do you prioritize production support against new development?
+10. Describe a time your first solution did not work.
+11. How do you review code written by another engineer?
+12. How do you ensure knowledge is not concentrated in one person?
+13. Have you mentored junior team members?
+14. How do you keep your skills current?
+15. What kind of work environment helps you perform best?
+16. What are your short- and long-term career goals?
+17. Why should we hire you over someone with deeper experience in Spark or Kafka?
+18. What is your expected salary?
+19. What is your notice period and availability to join?
+20. Why did you leave—or why are you leaving—your most recent employer?
+
+For employment-related questions, give a brief, factual answer consistent with your actual circumstances. Avoid criticizing former employers or disclosing confidential project information.
+
+## 20. Certifications and education
+
+Your badges are useful supporting evidence, but interviewers may ask what you actually learned.
+
+1. What did you learn in Databricks Lakehouse Fundamentals?
+2. Can you explain the lakehouse architecture?
+3. How does a lakehouse differ from a traditional warehouse?
+4. What did you learn from Snowflake Hands-On Essentials?
+5. What are Snowflake stages, warehouses and data loading mechanisms?
+6. What did you learn in your Python training?
+7. How have you applied Python to a real data engineering problem?
+8. What did you learn from the Power BI and Tableau specialization?
+9. Why did you choose Mechanical Engineering and move into IT?
+10. How have you developed your technical skills since graduation?
+
+## 21. Resume claims you must be able to defend
+
+These deserve special attention because an interviewer can ask for evidence or technical detail.
+
+| Resume statement                        | What you must be able to explain                                           |
+| --------------------------------------- | -------------------------------------------------------------------------- |
+| “10 years of experience”                | Accurate timeline and responsibilities across employers                    |
+| “Architected end-to-end data pipelines” | Architecture, design decisions and your personal contribution              |
+| “Full-load and streaming ingestion”     | Actual implementation, checkpoints, retries and failure handling           |
+| “Optimized dbt transformations”         | A concrete model, bottleneck and measured improvement                      |
+| “Boost query performance”               | Before-and-after evidence and the changes made                             |
+| “Zero post-launch downtime”             | Migration strategy, validation, cutover and what downtime meant            |
+| “Automated 3 reporting workflows”       | What was automated and how much manual effort was saved                    |
+| “8% increase in profitability”          | How the metric was measured and the role your analysis played              |
+| “Reduced retrieval time by 36%”         | Original bottleneck, optimization and measurement method                   |
+| “Production-style personal pipeline”    | Which parts actually work, how they are tested and what remains incomplete |
+
+If you cannot substantiate a numerical result, clarify the context rather than inventing a metric.
+
+One important consistency check: if your Canam employment ended in October 2026, update the resume's `Jan 2025 – Present` date to your actual end month.&#x20;
+
+## 22. How I recommend preparing
+
+You do not need to memorize answers to every question. Focus on being able to explain your projects, demonstrate technical fundamentals and solve practical problems.
+
+## 1
+
+Phase 1 — Resume and project defence
+
+Days 1–3
+
+Tell me about yourself
+
+Canam end-to-end architecture
+
+Your specific ownership and contribution
+
+TCS migration and CGI achievements
+
+## 2
+
+Phase 2 — Core engineering
+
+Days 4–8
+
+SQL coding and query optimization
+
+Python coding exercises
+
+Airflow and failure recovery
+
+GCS, Pub/Sub and Snowflake ingestion
+
+## 3
+
+Phase 3 — Transformations and delivery
+
+Days 9–11
+
+dbt models and incremental processing
+
+Terraform and CI/CD
+
+Data modeling, testing and governance
+
+## 4
+
+Phase 4 — Senior interview practice
+
+Days 12–14
+
+Architecture design and trade-offs
+
+Production troubleshooting scenarios
+
+Behavioral questions and mock interviews
+
+## What we should do next
+
+I recommend turning this question bank into an interactive interview-preparation series, rather than attempting all topics at once.
+
+Start with the Canam project. I can ask one question at a time, wait for your answer, assess it as an interviewer would, correct technical gaps and help you build a strong answer grounded in your actual experience.
