@@ -66,8 +66,9 @@ Architecture A — Azure Data Engineering
 
 Your Formula 1 project reference
 
-![alt text](image.png)
+[Recently explored this medallion-style architecture that uses Azure-native services to build a scalable, production-ready data pipeline. | Pranav Reddy](https://images.openai.com/static-rsc-4/Acwvpt9t_petNz9Wsr88-0gR1LiZ6xwjBubs1KjCO3BYxBmlJtY-Xrttz3zpuTlDh6_D9-R38FlZEMkVXJ9G1dD2NuCCJFtrEmRVIc9C45lXN_JH7qrJqe8ur8hQ7ZgtqHG40D5J_LGT6WztAzQxRNilmn1vq_b1UcJgGgWZdWA?purpose=inline)
 
+[linkedin.com](https://www.linkedin.com/posts/pd257_recently-explored-this-medallion-style-architecture-activity-7350739874221613056-Ph4h?utm_source=chatgpt.com)
 
 Source data
 
@@ -93,7 +94,9 @@ Architecture B — GCP Data Engineering
 
 Your Canam project reference
 
-![alt text](image-1.png)
+[Data Platforms vs Large Datasets— Dremio & Snowflake match | by Insightify.io | Medium](https://images.openai.com/static-rsc-4/9n9kCZ1fzKLjWuracawJhUnb297kQDPdkg77KT2VdbqzgTAUppcKmoLYZTO5y6mrIh69DpufInJCyDekl1ImYSiSWBqEGbYX6xDYEwcK9pbAbUdqytRvCtDbWb_tO0yCMYmTUe75-atvU7jBp2BQ1GhAuCB4LqyfcCgJCajigAM?purpose=inline)
+
+[medium.com](https://medium.com/%40tech_8949/data-platforms-vs-large-datasets-dremio-snowflake-match-94a48f7e85e6?utm_source=chatgpt.com)
 
 Source systems
 
@@ -192,7 +195,7 @@ Storage
 
 Orchestration
 
-
+CorrectADLS Gen2 stores the files. It does not automatically transform them.
 
 2\. You use PySpark to read those files, remove duplicates and calculate monthly revenue. What is primarily doing the work?
 
@@ -202,7 +205,7 @@ Compute
 
 IAM
 
-
+CorrectSpark uses compute resources to read and transform the data.
 
 3\. You want a job to run every day at 2 AM, and then trigger another job after it succeeds. What do you need?
 
@@ -212,7 +215,7 @@ Orchestration
 
 Data partitioning
 
-
+CorrectAn orchestrator such as Airflow or Azure Data Factory schedules and coordinates tasks.
 
 4\. After a Databricks job completes, you terminate its cluster. What happens to files stored in ADLS Gen2?
 
@@ -222,8 +225,10 @@ They remain stored
 
 They move into Databricks
 
+CorrectStorage and compute are separate. Terminating compute does not delete the stored files.
 
+Score: 4/4
 
-Check my answers
+Retry questions
 
 We'll move forward only after you've understood the foundations. I want you to be able to explain not just what ADLS, GCS, Databricks, BigQuery and Airflow are, but also why an architect chooses one service over another and what happens behind the scenes.
