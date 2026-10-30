@@ -66,9 +66,7 @@ Architecture A — Azure Data Engineering
 
 Your Formula 1 project reference
 
-[Recently explored this medallion-style architecture that uses Azure-native services to build a scalable, production-ready data pipeline. | Pranav Reddy](https://images.openai.com/static-rsc-4/Acwvpt9t_petNz9Wsr88-0gR1LiZ6xwjBubs1KjCO3BYxBmlJtY-Xrttz3zpuTlDh6_D9-R38FlZEMkVXJ9G1dD2NuCCJFtrEmRVIc9C45lXN_JH7qrJqe8ur8hQ7ZgtqHG40D5J_LGT6WztAzQxRNilmn1vq_b1UcJgGgWZdWA?purpose=inline)
-
-[linkedin.com](https://www.linkedin.com/posts/pd257_recently-explored-this-medallion-style-architecture-activity-7350739874221613056-Ph4h?utm_source=chatgpt.com)
+![Azure_Data_Engineering](Images/Azure_Data_Engineering.png)
 
 Source data
 
@@ -94,9 +92,7 @@ Architecture B — GCP Data Engineering
 
 Your Canam project reference
 
-[Data Platforms vs Large Datasets— Dremio & Snowflake match | by Insightify.io | Medium](https://images.openai.com/static-rsc-4/9n9kCZ1fzKLjWuracawJhUnb297kQDPdkg77KT2VdbqzgTAUppcKmoLYZTO5y6mrIh69DpufInJCyDekl1ImYSiSWBqEGbYX6xDYEwcK9pbAbUdqytRvCtDbWb_tO0yCMYmTUe75-atvU7jBp2BQ1GhAuCB4LqyfcCgJCajigAM?purpose=inline)
-
-[medium.com](https://medium.com/%40tech_8949/data-platforms-vs-large-datasets-dremio-snowflake-match-94a48f7e85e6?utm_source=chatgpt.com)
+![GCP_Data_Engineering](Images/GCP_Data_Engineering.png)
 
 Source systems
 
@@ -175,9 +171,7 @@ A simple analogy:
 - Compute = workers and machines that process the goods.
 - Orchestration = manager who schedules and coordinates the work.
 
-[Medium](https://images.openai.com/static-rsc-4/wKQhJ0-YkrG0Q6PmcLCmAkSCaOVW2OF2zS3Qhfk3Cv9qJtHWPyfm_UiZZoclxCOz7KL5s2FmTqD_BjDlOip23yJcy8xEpdAx8kPQb-4_ZpElq-8UoqlCb3w04wMvOGuA0qc-qn7KZohZwLRTfHuYQLDkcwaKc4KUNmWBCw_qXU0?purpose=inline)
-
-[thedataforge.medium.com](https://thedataforge.medium.com/data-engineering-in-the-cloud-aws-vs-azure-vs-gcp-ba383449bd1d?utm_source=chatgpt.com)
+![analogy](Images/analogy.png)
 
 Why does this distinction matter?
 
