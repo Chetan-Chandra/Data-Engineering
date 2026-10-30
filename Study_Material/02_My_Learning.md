@@ -66,7 +66,7 @@ Architecture A — Azure Data Engineering
 
 Your Formula 1 project reference
 
-![Azure_Data_Engineering](Images/Azure_Data_Engineering.png)
+![Azure_Data_Engineering](Azure_Data_Engineering.png)
 
 Source data
 
@@ -92,7 +92,7 @@ Architecture B — GCP Data Engineering
 
 Your Canam project reference
 
-![GCP_Data_Engineering](Images/GCP_Data_Engineering.png)
+![GCP_Data_Engineering](GCP_Data_Engineering.png)
 
 Source systems
 
@@ -171,7 +171,7 @@ A simple analogy:
 - Compute = workers and machines that process the goods.
 - Orchestration = manager who schedules and coordinates the work.
 
-![analogy](Images/analogy.png)
+![analogy](analogy.png)
 
 Why does this distinction matter?
 
