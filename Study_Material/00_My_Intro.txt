@@ -1,0 +1,29 @@
+Hi, I'm Chetan Chandra. I have around 10 years of experience across Business Intelligence, Data Analytics and Data Engineering.
+
+I started my career at CGI, where I worked with SQL, relational databases, reporting, database optimisation and production support. 
+This helped me build a strong foundation in SQL and data management.
+
+After that, I joined TCS, where I worked on cloud-based analytics solutions using SQL, BigQuery and Tableau. 
+My responsibilities included dashboard migration, reporting automation and data analysis.
+
+Most recently, I worked at Canam as a BI Developer, with a strong focus on data engineering and cloud data platform modernisation. 
+I worked with Python, Apache Airflow, GCP, Google Cloud Storage, Pub/Sub, Snowflake, Snowpipe, dbt and Terraform. 
+My work involved building and supporting data ingestion pipelines, orchestrating workflows, implementing data transformations 
+and supporting CI/CD deployments.
+
+Alongside my professional experience, I have also worked on a few personal projects to strengthen my technical skills.
+
+One was an end-to-end Data Engineering Pipeline, where I worked with cloud storage, Airflow, Pub/Sub, Snowflake, Snowpipe, dbt 
+and Terraform to build a production-style data pipeline from source to target.
+
+I also worked on a Formula 1 data engineering project using Azure Databricks and PySpark, where I ingested, transformed 
+and prepared data for analytical use.
+
+Another project was UK Railway Analysis, where I used SQL and Power BI to analyse railway operations 
+and build an exploratory dashboard to identify useful business insights.
+
+Overall, my experience has given me a good understanding of the complete data lifecycle, from data ingestion 
+and transformation to data modelling, reporting and production support.
+
+I'm now looking for an opportunity where I can use my experience to contribute to scalable data engineering solutions, 
+take on greater technical responsibilities and continue growing professionally.
