@@ -1,0 +1,423 @@
+Absolutely, Chetan. We'll turn your new resume into a complete Data Engineer interview preparation programme, starting from the fundamentals and progressing to senior-level technical and architecture questions.
+
+I don't want you to simply memorise answers. My goal is that when an interviewer picks any technology, project, achievement, or technical statement from your resume, you can explain:
+
+1. What it is and why it is used.
+2. How it works internally.
+3. How you implemented or used it.
+4. How to write the relevant code or SQL.
+5. What can go wrong in production and how to troubleshoot it.
+6. What alternatives exist and why you would choose one over another.
+7. What follow-up questions an interviewer might ask.
+
+We'll use your resume as the syllabus. We'll also distinguish between your actual professional experience, your personal projects, and technologies you have listed as skills but still need to strengthen. This is important: you should be able to defend every claim honestly.
+
+# Your complete Data Engineer interview preparation roadmap
+
+## Your preparation targets
+
+# 10
+
+Years of experience to position
+
+# 3
+
+Professional employers/projects
+
+# 3
+
+Personal projects listed
+
+# 1
+
+Structured learning programme
+
+Our learning method
+
+1. Understand the concept in simple language.
+2. Study syntax, commands, and coding examples.
+3. Practise interview questions.
+4. Solve practical scenarios.
+5. Give a spoken interview answer.
+6. Take a mock interview and get evaluated.
+
+## 1. Complete syllabus based on your resume
+
+This is the order I recommend. We will not skip fundamentals just because a technology appears in your resume.
+
+### Phase 1 — Core foundations
+
+Highest priority
+
+| Module            | Topics you must master                                                                                    |
+| ----------------- | --------------------------------------------------------------------------------------------------------- |
+| SQL               | SELECT, WHERE, GROUP BY, HAVING, JOINs, CTEs, subqueries, CASE, UNION                                     |
+| Advanced SQL      | Window functions, ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, QUALIFY                                        |
+| SQL performance   | Indexes, execution plans, partitioning, clustering, query optimisation                                    |
+| Database concepts | Primary/foreign keys, constraints, normalisation, denormalisation, views, stored procedures, transactions |
+| Python            | Variables, data types, strings, lists, tuples, sets, dictionaries, loops, functions                       |
+| Advanced Python   | Comprehensions, lambda, map/filter, generators, iterators, OOP, modules                                   |
+| Python for DE     | File handling, CSV, JSON, APIs, database connectivity, logging, exceptions, datetime                      |
+| Data structures   | Lists vs tuples, dictionaries, sets, stacks, queues, time and space complexity                            |
+
+Coding exercises: 50 SQL problems and 30 Python problems, progressing from beginner to interview level.
+
+### Phase 2 — Data engineering and pipeline development
+
+| Module            | Topics you must master                                                           |
+| ----------------- | -------------------------------------------------------------------------------- |
+| ETL / ELT         | Differences, architecture, use cases, advantages                                 |
+| Batch processing  | Full load, incremental load, scheduled ingestion                                 |
+| Streaming         | Event-driven architecture, real-time vs micro-batch                              |
+| CDC               | Change Data Capture, watermarks, timestamps, log-based CDC                       |
+| Data formats      | CSV, JSON, XML, Avro, Parquet, ORC                                               |
+| Data architecture | Data warehouse, data lake, lakehouse, data marts                                 |
+| Data modelling    | Fact tables, dimension tables, star schema, snowflake schema, SCD Types 1 and 2  |
+| Reliability       | Idempotency, retries, checkpoints, deduplication, backfills, data reconciliation |
+| Data quality      | Null checks, uniqueness, referential integrity, schema validation                |
+
+### Phase 3 — Apache Airflow and Python pipelines
+
+Critical for Canam interviews
+
+[UI / Screenshots — Airflow Documentation](https://images.openai.com/static-rsc-4/-3gjMVq0Np19ognWk1gsp2uBszty5mvdaVDdbzxk9CE8Q-COhIYA_6OWZZxpDyGWM29ryKJuvok4vDlMF_ZEuZLcB3qSDWVi9_8pfwb_91sI25iKOSZUlu5DI4O6q_cag7HVtenjhuWy9PvaOuKP6egrVpnqcc0DQIWXKdYDrE0?purpose=inline)
+
+[airflow.apache.org](https://airflow.apache.org/docs/apache-airflow/2.3.0/ui.html?utm_source=chatgpt.com)
+
+You need to master:
+
+- Airflow architecture: Scheduler, DAG Processor, Executor, Worker, Webserver/API, Metadata Database.
+- DAGs, tasks, operators, hooks, sensors.
+- PythonOperator and custom operators.
+- Airflow connections, variables, secrets.
+- XCom and task dependencies.
+- Scheduling, cron expressions, catchup, backfill.
+- Retries, retry delay, timeouts, pools, concurrency.
+- Task states and DAG states.
+- Dynamic task mapping.
+- Logging and monitoring.
+- Airflow deployment and configuration.
+- Airflow on GKE and Cloud SQL.
+- Production troubleshooting.
+
+Coding: Write DAGs for full loads, incremental loads, API ingestion, GCS uploads, failure notifications, and dependent Snowflake tasks.
+
+### Phase 4 — GCP and cloud storage
+
+[Build data pipelines and platforms on gcp, aws, and azure by Kshfse | Fiverr](https://images.openai.com/static-rsc-4/IqKro5th4BNCzC8mhnB1okiTIxJrAVlaNTWH19fD0J2XwOaUkjL1xEDgbzMw6PdDJ30moehcUqw7hcZTnDI85sji3gzho7c37XuJmDJ0AoFJAdedWKevXZGansUTYfxJSjRA7zGQXITXpGvomMxOrgVSd2T8zZIIsqJhqcvo394?purpose=inline)
+
+[fiverr.com](https://www.fiverr.com/kshfse/build-data-pipelines-and-platforms-on-gcp-aws-and-azure?utm_source=chatgpt.com)
+
+| Technology             | What you must know                                                        |
+| ---------------------- | ------------------------------------------------------------------------- |
+| GCP                    | Projects, regions, zones, IAM, service accounts                           |
+| GCS                    | Buckets, objects, storage classes, lifecycle, permissions                 |
+| Pub/Sub                | Topics, subscriptions, publishers, subscribers, acknowledgements, retries |
+| Event-driven ingestion | Cloud storage events, message delivery, notification handling             |
+| BigQuery               | Datasets, tables, partitioning, clustering, SQL, cost optimisation        |
+| IAM                    | Roles, permissions, service accounts, least privilege                     |
+| Cloud security         | Authentication, authorisation, service account credentials                |
+
+Practical exercises: Create a Python script to extract data and upload it to GCS. Understand how a GCS event can trigger a Pub/Sub notification.
+
+### Phase 5 — Snowflake and Snowpipe
+
+[Snowflake Architecture Overview](https://images.openai.com/static-rsc-4/iszIu3vzO3A3X5UiRMBM1ivZa5rduJRBp9fI55v8VS91jd1tdgqMC6nu3w9dMPgrbBbhMz6OPfEY3Oq1DP3xf_E0nSpi7bB1uZvBmvsxW15VdH0PCPqYbJPUSxpCJYBhCmL6O9Mm5pC4ZS5KX5lvnri4v26k5w5XUl-8hrtCWOM?purpose=inline)
+
+[linkedin.com](https://www.linkedin.com/pulse/snowflake-architecture-overview-minzhen-yang?utm_source=chatgpt.com)
+
+Topics:
+
+- Snowflake architecture: storage, compute, cloud services.
+- Databases, schemas, tables, views.
+- Virtual warehouses.
+- Internal and external stages.
+- File formats.
+- COPY INTO.
+- Snowpipe and Snowpipe auto-ingest.
+- GCS integration and Pub/Sub notifications.
+- Streams and Tasks.
+- Time Travel and Fail-safe.
+- Micro-partitions and pruning.
+- Clustering and query profile.
+- RBAC and roles.
+- MERGE and deduplication.
+- Snowflake performance and cost optimisation.
+
+Coding: Create file formats, stages, storage integrations, COPY INTO statements, Snowpipe configurations, MERGE statements, and deduplication queries.
+
+### Phase 6 — dbt and data transformation
+
+[Understanding the Medallion Architecture in dbt: What happens Layer by Layer?](https://images.openai.com/static-rsc-4/vjBvKgioAD9sXJA8ezYpHyzCgmLPUOcazaPQj4JCi1juvJ1eAoiP5pnrDRRG7MSabNtHEi2VtGAbzx5XH7JJ88ZdUyuKv-7eNvdRd0rfRnXvUupBWgRV5U7gfsjTKlMYg9rVT7bu0wr3c9smFXi5iwozGfayiM702yA6ZmuBC8s?purpose=inline)
+
+[deeplearningnerds.com](https://www.deeplearningnerds.com/understanding-the-medallion-architecture-in-dbt-what-happens-layer-by-layer/?utm_source=chatgpt.com)
+
+Topics:
+
+- What dbt does and why it is used.
+- Models and materialisations.
+- Views, tables, incremental models, ephemeral models.
+- Sources and source freshness.
+- Seeds and snapshots.
+- Tests: unique, not_null, relationships, accepted_values.
+- Macros and Jinja.
+- Ref and source functions.
+- Documentation and lineage.
+- Incremental strategies.
+- Full refresh.
+- Model dependencies and DAG execution.
+- dbt project structure.
+- dbt deployment through CI/CD.
+
+Your Canam transformation flow:
+
+`Landing → Prepare → Normalize → Schematize → Marketplace`
+
+We will study the purpose of each layer based on your project's actual design, rather than assuming these names have universal definitions.
+
+### Phase 7 — Terraform and Azure DevOps
+
+| Technology         | Topics                                                                         |
+| ------------------ | ------------------------------------------------------------------------------ |
+| Terraform          | Providers, resources, variables, outputs, modules, state, plan, apply, destroy |
+| Terraform state    | Local vs remote state, locking, drift, import                                  |
+| Terraform workflow | Init, validate, plan, apply                                                    |
+| Azure Repos        | Git, branches, pull requests, merging                                          |
+| Azure Pipelines    | YAML, triggers, stages, jobs, steps, agents                                    |
+| CI/CD              | Build, test, deployment, environments, approvals                               |
+| Secrets            | Secure variables, service connections, credentials                             |
+
+You should be able to explain how infrastructure is provisioned and how a pipeline deploys changes safely across environments.
+
+### Phase 8 — Apache Spark, PySpark, Databricks and Delta Lake
+
+Needs practical strengthening
+
+Your resume lists these technologies, so we must make sure you can defend them, particularly in interviews for Senior Data Engineer roles.
+
+[Spark Architecture Simplified: Driver, DAG, Stages, Tasks, Executors | Shivam Pandey posted on the topic | LinkedIn](https://images.openai.com/static-rsc-4/xGZ7oPZIYNUMBdyuCKYbElY7jo2GyhIGtgMYqNBsQpfPZiZS8qFfWwbs9OgwxPkmx8eY6G6KIrgudmUjAYxMBLCQxCkk5mJOBGRfUgvdNZGtiRl3EqrIRRF1Xlmh3iVvdUeUv0KaoddQnNzQA2iyuCrjtxDIXb9u6DFHZQQiaWg?purpose=inline)
+
+[linkedin.com](https://www.linkedin.com/posts/shivampandey001_spark-architecture-is-simple-on-the-surface-activity-7415374493411356672-o6gq?utm_source=chatgpt.com)
+
+Topics:
+
+- Apache Spark vs PySpark.
+- Spark architecture: Driver, Executors, Cluster Manager.
+- SparkSession and SparkContext.
+- DataFrames and RDDs.
+- Transformations vs actions.
+- Lazy evaluation.
+- Narrow vs wide transformations.
+- Partitions and repartition/coalesce.
+- Shuffle operations.
+- Joins and join optimisation.
+- Broadcast joins.
+- Caching and persistence.
+- Spark SQL.
+- Window functions.
+- UDFs.
+- Handling skew.
+- Reading and writing CSV, JSON and Parquet.
+- Delta Lake, ACID transactions, schema enforcement and evolution.
+- Databricks notebooks, clusters, jobs and workflows.
+
+Important: Your Formula 1 Azure project is where we will practise PySpark. We must clearly distinguish personal-project experience from professional production experience.
+
+### Phase 9 — Azure data engineering
+
+[Recently explored this medallion-style architecture that uses Azure-native services to build a scalable, production-ready data pipeline. | Pranav Reddy](https://images.openai.com/static-rsc-4/Acwvpt9t_petNz9Wsr88-0gR1LiZ6xwjBubs1KjCO3BYxBmlJtY-Xrttz3zpuTlDh6_D9-R38FlZEMkVXJ9G1dD2NuCCJFtrEmRVIc9C45lXN_JH7qrJqe8ur8hQ7ZgtqHG40D5J_LGT6WztAzQxRNilmn1vq_b1UcJgGgWZdWA?purpose=inline)
+
+[linkedin.com](https://www.linkedin.com/posts/pd257_recently-explored-this-medallion-style-architecture-activity-7350739874221613056-Ph4h?utm_source=chatgpt.com)
+
+- Azure subscriptions and resource groups.
+- ADLS Gen2 containers and storage accounts.
+- Access control and authentication.
+- Databricks workspace and compute.
+- Notebooks and workflows.
+- PySpark transformations.
+- Delta tables.
+- Raw, Processed and Presentation layers.
+- Medallion architecture.
+- Incremental processing.
+- Data quality and validation.
+- Azure lakehouse architecture.
+
+### Phase 10 — BI, Tableau, Power BI and data modelling
+
+| Module         | Topics                                                                            |
+| -------------- | --------------------------------------------------------------------------------- |
+| Tableau        | Dimensions, measures, extracts, live connections, filters, LOD, calculated fields |
+| Power BI       | Power Query, data model, relationships, DAX, measures, calculated columns         |
+| DAX            | CALCULATE, FILTER, SUMX, RELATED, ALL, context transition                         |
+| BI performance | Query reduction, star schema, aggregation, extract optimisation                   |
+| Data modelling | Grain, facts, dimensions, relationships, slowly changing dimensions               |
+
+### Phase 11 — Architecture and senior-level interviews
+
+This is particularly important for your target roles.
+
+- Design an end-to-end enterprise data platform.
+- Design a batch ingestion architecture.
+- Design a streaming ingestion architecture.
+- Design a CDC pipeline.
+- Design an incremental loading framework.
+- Data lake vs data warehouse vs lakehouse.
+- Lambda vs Kappa architecture.
+- Scalability, availability and fault tolerance.
+- Security, governance and data lineage.
+- Disaster recovery and high availability.
+- Cost and performance trade-offs.
+- Data contracts and schema evolution.
+- Monitoring, alerting and observability.
+- Technical leadership and stakeholder management.
+
+### Phase 12 — Your project and experience deep dives
+
+We will prepare separate interview walkthroughs for:
+
+1. Canam Datafinity: Source systems, Airflow, Python, GCS, Pub/Sub, Snowpipe, Snowflake, dbt, Terraform, Azure CI/CD, Tableau.
+2. TCS BigQuery migration: Migrating 10+ dashboards, SQL changes, validation, reconciliation, deployment and zero post-launch downtime.
+3. CGI RMS Commercial: SQL analysis, profitability improvement, Power BI reporting.
+4. CGI WFAS: Database design, indexing, SQL tuning, 36% retrieval-time improvement.
+5. UK Railway Analysis: SQL analysis and Power BI dashboard.
+6. Data Engineering Pipeline: Source-to-target pipeline, orchestration, Snowflake, dbt and Terraform.
+7. Formula 1 Azure Data Engineering: ADLS Gen2, Databricks, PySpark, SQL, Delta Lake, and Raw/Processed/Presentation layers.
+
+For each project, we'll prepare:
+
+- Architecture walkthrough.
+- Your exact contribution.
+- Code and SQL.
+- Technical challenges.
+- Failures and debugging.
+- Performance improvements.
+- Results and measurable impact.
+- At least 20 potential follow-up questions.
+
+## 2. The interview question bank we will build
+
+These are examples of the questions you must be able to answer. We will expand each module into detailed questions, coding exercises, and follow-ups as we study it.
+
+| Resume area        | Examples of likely interview questions                                                                                      |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| SQL                | Find the second-highest salary. Find duplicate records. Find the latest record per customer. Identify gaps in dates.        |
+| Python             | Remove duplicates from a list. Count word frequencies. Process a CSV file. Handle exceptions. Read JSON from an API.        |
+| Airflow            | What is a DAG? How does the scheduler work? What is XCom? How do retries work? How do you handle failed tasks?              |
+| GCP                | What is GCS? What is Pub/Sub? How do you secure a bucket? What happens if a message is delivered twice?                     |
+| Snowflake          | What is a virtual warehouse? What is a stage? How does Snowpipe work? How do you optimise a slow query?                     |
+| dbt                | What is an incremental model? What is a snapshot? How do you test a model? What does `ref()` do?                            |
+| Terraform          | What is Terraform state? What is drift? What is the difference between plan and apply?                                      |
+| Spark              | What is lazy evaluation? What is a shuffle? What is a broadcast join? How do you handle data skew?                          |
+| Databricks         | What is Delta Lake? What is a lakehouse? How do you implement a medallion architecture?                                     |
+| Azure              | What is ADLS Gen2? How does Databricks read data from ADLS?                                                                 |
+| BI                 | What is a star schema? What is the difference between a measure and calculated column?                                      |
+| Architecture       | Design a pipeline processing 100 million records daily. How would you handle late-arriving data?                            |
+| Project deep dives | Explain your Canam architecture. How did you validate migration results at TCS? How did you improve SQL performance at CGI? |
+
+We'll also prepare behavioural questions:
+
+- Tell me about yourself.
+- Explain your most challenging project.
+- Tell me about a production failure you resolved.
+- How do you handle disagreements with architects?
+- Have you mentored or supported other developers?
+- How do you estimate engineering work?
+- How do you handle tight deadlines?
+- Why did you leave your previous organisation?
+- Why should we hire you as a Senior Data Engineer?
+
+## 3. Important resume points we need to verify and strengthen
+
+I want to highlight these now so you aren't caught off guard in an interview.
+
+PySpark and Apache Spark
+
+Priority
+
+You previously told me you had no professional PySpark experience. Your resume now lists PySpark and Spark. We will build practical competence using your Formula 1 project, but you should describe that as personal-project experience unless you have subsequently used them professionally.
+
+Azure Databricks and ADLS Gen2
+
+Priority
+
+These are supported by your Formula 1 personal project. You must be able to explain the architecture, code, storage access, and Delta Lake operations.
+
+Architected end-to-end pipelines
+
+Priority
+
+Your Canam resume uses the word "Architected". Be ready to explain which architecture decisions you personally made, which were designed by architects, and which parts you implemented.
+
+Led the end-to-end migration
+
+Priority
+
+At TCS, prepare to explain your individual ownership, stakeholder coordination, migration strategy, testing, and deployment. Be precise about what "led" means in your role.
+
+10 years of experience
+
+Defend confidently
+
+Your dates from December 2016 to October 2026 support approximately 9 years and 10 months. Saying around 10 years is reasonable.
+
+One additional administrative point: if your Canam employment ended in October 2026, update the resume from `Jan 2025 – Present` to the actual end month.
+
+## 4. How we will study: one module at a time
+
+I recommend this sequence:
+
+## Learning progression
+
+1. Level 1 — Fundamentals
+
+   Learn concepts from scratch, with simple examples.
+2. Level 2 — Practical coding
+
+   Write queries, Python programs, Airflow DAGs, dbt models, and PySpark transformations.
+3. Level 3 — Real project scenarios
+
+   Connect concepts to Canam, TCS, CGI, and your personal projects.
+4. Level 4 — Interview questions
+
+   Answer basic, intermediate, advanced, and tricky follow-up questions.
+5. Level 5 — Mock interviews
+
+   I'll act as the interviewer, evaluate your responses, correct inaccuracies, and ask follow-up questions.
+
+We'll maintain a simple progress tracker as we go, so you can see what you have completed and what still needs work.
+
+## 5. Let's configure your preparation
+
+I recommend starting with SQL because it is fundamental to almost every role on your resume. Then Python, followed by Airflow and the Canam pipeline.
+
+1\. Your current preparation level
+
+Start from basics, even if I have used the technology
+
+I know the basics; focus on practical and advanced concepts
+
+Assess me separately for each technology
+
+2\. Your main interview target
+
+Senior Data Engineer
+
+Data Engineering Lead
+
+Data Architect
+
+All three roles
+
+3\. Learning style
+
+Detailed teaching with examples and exercises
+
+Interview questions and answers first
+
+Hands-on coding and projects first
+
+Start my preparation
+
+My recommendation: Don't try to learn 15 technologies simultaneously. Build strong SQL and Python foundations first, then master your Canam pipeline end to end. After that, strengthen Spark, PySpark, and Azure through your Formula 1 project.
+
+The ultimate goal is simple: if an interviewer points to any line on your resume, you should be able to explain it, demonstrate it, and defend it technically.
