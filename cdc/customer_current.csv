@@ -1,0 +1,7 @@
+customer_id,customer_name,city,email,updated_at,last_kafka_offset,last_event_timestamp
+1,Amit Sharma,Pune,amit@gmail.com,2026-11-03 14:10:27.145894 UTC,0,2026-11-07 10:00:39.352000 UTC
+5,Sneha Roy,Chennai,sneha@gmail.com,2026-11-02 21:44:48.047009 UTC,1,2026-11-07 10:00:39.354000 UTC
+6,Arjun Das,Kolkata,arjun@gmail.com,2026-11-03 14:10:27.144893 UTC,2,2026-11-07 10:00:39.354000 UTC
+10,Rahul Das,Kolkata,rahul@gmail.com,2026-11-07 10:26:29.368478 UTC,7,2026-11-07 10:33:39.687000 UTC
+11,Priya Sharma,Delhi,priya@gmail.com,2026-11-07 10:29:11.861362 UTC,8,2026-11-07 10:33:39.688000 UTC
+12,Test Customer,Kolkata,test12@gmail.com,2026-11-07 19:05:08.040000 UTC,9,2026-11-07 13:35:10.141000 UTC
