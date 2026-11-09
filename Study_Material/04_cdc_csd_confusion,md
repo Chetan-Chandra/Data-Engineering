@@ -1,0 +1,145 @@
+It is completely normal to confuse these terms because **they all deal with tracking changes over time**, but they live at different layers of the data engineering stack.
+
+Think of it like building a house: some are raw materials, some are architectural blueprints, and others are power tools.
+
+Here is the ultimate breakdown to clear up the confusion once and for all.
+
+---
+
+### The Big Picture Analogy
+
+Imagine an online store customer, Alice. She lives in **New York** on Monday, but moves to **Chicago** on Friday. How does that change get captured, moved, and stored?
+
+* **CDC** detects that Alice's row in the source database changed.
+* **Snowflake Streams** catches that change inside Snowflake.
+* **INSERT & MERGE** or **dbt Snapshots** are the methods you use to write that change into history.
+* **SCD Type 2** is the final table structure showing that Alice lived in NY from Monday to Thursday, and Chicago from Friday onwards.
+
+---
+
+### 1. CDC (Change Data Capture) — *The Source-Side Radar*
+
+* **What it is:** A database-level technology that listens to the source database’s transaction logs (like SQL Server Transaction Log or PostgreSQL WAL) and extracts every **Insert, Update, and Delete** as it happens.
+* **Where it happens:** At the **source database** (where your app data lives, before it enters the data warehouse).
+* **Why it matters:** Instead of copying an entire 100-million-row table every night (full load), CDC only sends the *deltas* (the exact changes).
+
+### 2. SCD Type 2 (Slowly Changing Dimension Type 2) — *The Destination Blueprint*
+
+* **What it is:** A **data modeling standard / design pattern** for storing history in your data warehouse dimension tables.
+* **How it works:** When an attribute changes (e.g., a customer changes their city), you don't overwrite the old row. Instead, you:
+1. "Close out" the old row by updating a `valid_to` date or setting `is_current = FALSE`.
+2. **Insert** a brand-new row with `valid_from` = today and `is_current = TRUE`.
+
+
+* **Why it matters:** It lets you run historical reporting (e.g., *"What were our sales in regions based on where customers lived at the time of purchase?"*).
+
+### 3. INSERT & MERGE Statements — *The Manual Plumbing*
+
+* **What it is:** The **raw SQL code** you write yourself to implement SCD Type 2.
+* **How it works:** You write a script using a SQL `MERGE` statement to match incoming source data against your existing dimension table, update the old records (`UPDATE ... SET valid_to = CURRENT_DATE()`), and insert the new records (`INSERT INTO ...`).
+* **Why it matters:** It gives you total, fine-grained control, but requires you to write and maintain complex SQL logic.
+
+### 4. dbt Snapshots — *The Automated Tool Way*
+
+* **What it is:** A built-in feature in **dbt (data build tool)** that automatically builds and maintains SCD Type 2 tables for you without writing manual `MERGE` statements.
+* **How it works:** You define a simple configuration block pointing dbt to a source table. dbt checks the table on a schedule, detects what changed, and automatically handles closing old rows and inserting new ones.
+* **Why it matters:** It saves you from writing complex manual SCD2 SQL logic.
+
+### 5. Snowflake Streams — *The Cloud Native Change Log*
+
+* **What it is:** A **Snowflake-specific database object** that tracks DML changes (inserts, updates, deletes) made to a table *inside* Snowflake.
+* **How it works:** A Stream doesn't store data itself; it acts as a change log. When you query a stream, it gives you only the rows that were added, modified, or deleted since the last time you checked.
+* **Why it matters:** It enables real-time, incremental processing in Snowflake (often paired with Snowflake Tasks) without needing external CDC tools.
+
+---
+
+### Summary Comparison Table
+
+| Term | What is it? | Where does it live? | Purpose |
+| --- | --- | --- | --- |
+| **CDC** | Technology | Source Database | Captures database transaction changes at the source. |
+| **Snowflake Streams** | Snowflake Object | Snowflake DW | Captures changes *inside* Snowflake for incremental pipelines. |
+| **SCD Type 2** | Data Model / Pattern | Data Warehouse | The design of keeping historical rows with valid dates. |
+| **INSERT & MERGE** | Raw SQL Code | Any SQL Database | The manual code used to write and update SCD2 tables. |
+| **dbt Snapshots** | Automated Feature | dbt Framework | Automatically generates SCD Type 2 history from source data. |
+
+---
+
+Here is a side-by-side comparison of how you maintain an **SCD Type 2** table using **manual SQL (`MERGE` / `UPDATE` + `INSERT`)** versus **dbt Snapshots**.
+
+Both achieve the exact same final result (tracking historical changes with active date ranges), but the amount of code and maintenance effort required is drastically different.
+
+---
+
+### Side-by-Side Comparison: Manual MERGE vs. dbt Snapshot
+
+| Feature | Manual SQL (`MERGE` / `UPDATE` + `INSERT`) | dbt Snapshot (`.sql` + configuration block) |
+| --- | --- | --- |
+| **Code Complexity** | High (Requires writing custom multi-step stored procedures or transactional scripts). | Low (Declarative YAML configuration + simple SELECT query). |
+| **Change Detection** | You must manually write logic to compare columns (e.g., `src.city <> tgt.city`). | Handled automatically using either a `timestamp` or a `check` strategy (hashing columns). |
+| **Handling History (`valid_from`, `valid_to`)** | You must manually write the date-closing logic and insert statements. | Handled automatically (`dbt_valid_from`, `dbt_valid_to`, `dbt_updated_at`). |
+| **Maintenance** | High. If schema changes (e.g., adding a column), you must rewrite your MERGE logic. | Low. dbt automatically handles new columns when refreshing snapshots. |
+
+---
+
+### 1. The Manual SQL Approach (Snowflake / T-SQL)
+
+To do SCD Type 2 manually, you typically have to run a multi-step transaction: **Step 1** closes out the old records where data changed, and **Step 2** inserts the new active records.
+
+```sql
+-- STEP 1: Update existing active records to close their validity window if the city changed
+UPDATE DIM_CUSTOMER_SCD2 tgt
+SET tgt.valid_to = CURRENT_TIMESTAMP(),
+    tgt.is_current = FALSE
+FROM RAW_CUSTOMER_SOURCE src
+WHERE tgt.customer_id = src.customer_id
+  AND tgt.is_current = TRUE
+  AND tgt.city <> src.city;
+
+-- STEP 2: Insert the newly updated records as active rows
+INSERT INTO DIM_CUSTOMER_SCD2 (customer_id, city, valid_from, valid_to, is_current)
+SELECT 
+    src.customer_id,
+    src.city,
+    CURRENT_TIMESTAMP() AS valid_from,
+    NULL AS valid_to,
+    TRUE AS is_current
+FROM RAW_CUSTOMER_SOURCE src
+JOIN DIM_CUSTOMER_SCD2 tgt 
+    ON src.customer_id = tgt.customer_id
+WHERE tgt.is_current = TRUE
+  AND tgt.city <> src.city; -- (Plus handling brand-new customers via INSERT)
+
+```
+
+* **The Catch:** If you have 20 columns to track, writing the change-detection logic (`OR col1 <> col2 OR col3 <> col3...`) for every column becomes massive, error-prone boilerplate code.
+
+---
+
+### 2. The dbt Snapshot Approach
+
+With dbt, you write **zero procedural code**. You simply define a snapshot file (e.g., `customer_snapshot.sql`) specifying your source table and how dbt should track changes:
+
+```sql
+{% snapshot customer_snapshot %}
+
+{{
+    config(
+        target_schema='analytics',
+        unique_key='customer_id',
+        strategy='check',
+        check_cols=['city', 'email', 'status'],
+        updated_at='source_commit_ts'
+    )
+}}
+
+SELECT customer_id, city, email, status, source_commit_ts
+FROM {{ source('raw', 'customer_cdc_ledger') }}
+
+{% endsnapshot %}
+
+```
+
+* **How it works behind the scenes:** When you run `dbt snapshot`, dbt automatically compares the current source data against the historical snapshot table using a cryptographic hash of your `check_cols`. If anything changed, dbt automatically runs the `UPDATE` (to close the old record) and the `INSERT` (to create the new record) atomically in the background.
+
+---
