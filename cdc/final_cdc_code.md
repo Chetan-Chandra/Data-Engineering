@@ -16,17 +16,20 @@ ________________________________________________________________________________
 models/marts/dim_customer.sql:
 __________________________________________________________________________________________________________
 
+
 {{
     config(
         materialized = 'incremental',
         incremental_strategy = 'merge',
         unique_key = 'EVENT_ID',
+		alias = 'DIM_CUSTOMER'
         on_schema_change = 'sync_all_columns'
     )
 }}
 
 -- =========================================================
 -- STEP 1: Deduplicate incoming CDC events
+-- Apply lookback using warehouse ingestion timestamp
 -- =========================================================
 
 WITH DEDUPLICATED_STAGE AS (
@@ -34,13 +37,22 @@ WITH DEDUPLICATED_STAGE AS (
     SELECT *
     FROM {{ source('cdc_raw', 'customer_cdc_stage') }}
 
+    {% if is_incremental() %}
+
+    WHERE INGESTED_AT >= DATEADD(
+        DAY,
+        -{{ var('lookback_days', 3) }},
+        CURRENT_TIMESTAMP()
+    )
+
+    {% endif %}
+
     QUALIFY ROW_NUMBER() OVER (
         PARTITION BY EVENT_ID
-        ORDER BY UPDATED_AT DESC
+        ORDER BY INGESTED_AT DESC, UPDATED_AT DESC
     ) = 1
 
 ),
-
 
 -- =========================================================
 -- STEP 2: Identify genuinely new events
@@ -54,17 +66,14 @@ NEW_EVENTS AS (
     {% if is_incremental() %}
 
     WHERE NOT EXISTS (
-
         SELECT 1
         FROM {{ this }} T
         WHERE T.EVENT_ID = S.EVENT_ID
-
     )
 
     {% endif %}
 
 ),
-
 
 -- =========================================================
 -- STEP 3: Identify affected customers
@@ -76,7 +85,6 @@ AFFECTED_CUSTOMERS AS (
     FROM NEW_EVENTS
 
 ),
-
 
 -- =========================================================
 -- STEP 4: Combine existing history and new events
@@ -103,7 +111,7 @@ ALL_EVENTS AS (
 
     {% endif %}
 
-    -- New incoming events
+    -- New incoming events, including late arrivals
 
     SELECT
         CUSTOMER_ID,
@@ -114,7 +122,6 @@ ALL_EVENTS AS (
     FROM NEW_EVENTS
 
 ),
-
 
 -- =========================================================
 -- STEP 5: Reconstruct complete SCD Type 2 timeline
@@ -139,7 +146,6 @@ CALCULATED_TIMELINE AS (
 
 )
 
-
 -- =========================================================
 -- STEP 6: Return records for dbt MERGE
 -- =========================================================
@@ -153,6 +159,22 @@ SELECT
     EVENT_ID
 
 FROM CALCULATED_TIMELINE
+
+
+-- ==============================================================================================================================================================================================================================
+-- STEP 1: Deduplicate incoming CDC events 				-- QUALIFY ROW_NUMBER() OVER (PARTITION BY EVENT_ID ORDER BY INGESTED_AT DESC, UPDATED_AT DESC) = 1
+-- Apply lookback using warehouse ingestion timestamp   -- WHERE INGESTED_AT >= DATEADD(DAY, -{{ var('lookback_days', 3) }},CURRENT_TIMESTAMP())
+
+-- STEP 2: Identify genuinely new events 				-- WHERE NOT EXISTS (SELECT 1 FROM {{ this }} T WHERE T.EVENT_ID = S.EVENT_ID)
+
+-- STEP 3: Identify AFFECTED_CUSTOMERS 					-- SELECT DISTINCT CUSTOMER_ID FROM NEW_EVENTS
+
+-- STEP 4: Combine existing history and new events		-- {{ this }} T INNER JOIN AFFECTED_CUSTOMERS UNION ALL NEW_EVENTS on (CUSTOMER_ID, CITY, VALID_FROM / UPDATED_AT AS EVENT_TIME, EVENT_ID)
+
+-- STEP 5: Reconstruct complete SCD Type 2 timeline		-- EVENT_TIME AS VALID_FROM, LEAD(EVENT_TIME) OVER (PARTITION BY CUSTOMER_ID ORDER BY EVENT_TIME, EVENT_ID) AS VALID_TO
+
+-- STEP 6: Return records for dbt MERGE					-- VALID_FROM, VALID_TO, (VALID_TO IS NULL) AS IS_CURRENT
+-- ==============================================================================================================================================================================================================================
 
 
 
