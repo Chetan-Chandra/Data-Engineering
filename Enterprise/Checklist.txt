@@ -29,9 +29,9 @@ Phase 1 — Existing TEST Infrastructure Inventory
 
 Phase 2 — Sandbox GCP Storage
     Create sandbox DAG bucket
-    bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+    bkt-electric-tesla-507710-k2-airflow_dag-sandbox
     Create sandbox log bucket
-    bkt-prj-n-cdp-ingestion-airflow_log-sandbox
+    bkt-electric-tesla-507710-k2-airflow_log-sandbox
     Verify bucket location
     Verify bucket IAM
     Identify required lifecycle/retention settings
@@ -297,10 +297,10 @@ Phase 22 — Final Isolation Audit
 
 For a fully isolated Canam Airflow Sandbox, I would execute it in this order. The commands below assume:
 
-GCP project: prj-n-cdp-ingestion
+GCP project: electric-tesla-507710-k2
 Region: northamerica-northeast1
-Sandbox GCS DAG bucket: bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
-Sandbox GCS log bucket: bkt-prj-n-cdp-ingestion-airflow_log-sandbox
+Sandbox GCS DAG bucket: bkt-electric-tesla-507710-k2-airflow_dag-sandbox
+Sandbox GCS log bucket: bkt-electric-tesla-507710-k2-airflow_log-sandbox
 Sandbox namespace: airflow-sandbox
 Sandbox Artifact Registry repo: airflow-sandbox
 
@@ -308,7 +308,7 @@ Important: Some commands use placeholder values such as <EXISTING_GKE_CLUSTER>, 
 
 Canam Airflow Sandbox — Execution Order
 1. Set GCP project
-gcloud config set project prj-n-cdp-ingestion
+gcloud config set project electric-tesla-507710-k2
 
 Verify:
 
@@ -345,21 +345,21 @@ Do not create sandbox resources until you know these values.
 
 If not already created:
 
-gcloud storage buckets create gs://bkt-prj-n-cdp-ingestion-airflow_dag-sandbox \
-  --project=prj-n-cdp-ingestion \
+gcloud storage buckets create gs://bkt-electric-tesla-507710-k2-airflow_dag-sandbox \
+  --project=electric-tesla-507710-k2 \
   --location=northamerica-northeast1
 
 Verify:
 
-gcloud storage ls gs://bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+gcloud storage ls gs://bkt-electric-tesla-507710-k2-airflow_dag-sandbox
 4. Create sandbox GCS log bucket
-gcloud storage buckets create gs://bkt-prj-n-cdp-ingestion-airflow_log-sandbox \
-  --project=prj-n-cdp-ingestion \
+gcloud storage buckets create gs://bkt-electric-tesla-507710-k2-airflow_log-sandbox \
+  --project=electric-tesla-507710-k2 \
   --location=northamerica-northeast1
 
 Verify:
 
-gcloud storage ls gs://bkt-prj-n-cdp-ingestion-airflow_log-sandbox
+gcloud storage ls gs://bkt-electric-tesla-507710-k2-airflow_log-sandbox
 5. Create sandbox Artifact Registry repository
 gcloud artifacts repositories create airflow-sandbox \
   --repository-format=docker \
@@ -376,7 +376,7 @@ gcloud iam service-accounts create sa-kubtogcp-sandbox \
 
 The resulting identity will be:
 
-sa-kubtogcp-sandbox@prj-n-cdp-ingestion.iam.gserviceaccount.com
+sa-kubtogcp-sandbox@electric-tesla-507710-k2.iam.gserviceaccount.com
 
 Verify:
 
@@ -386,19 +386,19 @@ gcloud iam service-accounts list
 Start with object-level access:
 
 gcloud storage buckets add-iam-policy-binding \
-  gs://bkt-prj-n-cdp-ingestion-airflow_dag-sandbox \
-  --member="serviceAccount:sa-kubtogcp-sandbox@prj-n-cdp-ingestion.iam.gserviceaccount.com" \
+  gs://bkt-electric-tesla-507710-k2-airflow_dag-sandbox \
+  --member="serviceAccount:sa-kubtogcp-sandbox@electric-tesla-507710-k2.iam.gserviceaccount.com" \
   --role="roles/storage.objectAdmin"
 8. Give sandbox runtime SA access to sandbox log bucket
 gcloud storage buckets add-iam-policy-binding \
-  gs://bkt-prj-n-cdp-ingestion-airflow_log-sandbox \
-  --member="serviceAccount:sa-kubtogcp-sandbox@prj-n-cdp-ingestion.iam.gserviceaccount.com" \
+  gs://bkt-electric-tesla-507710-k2-airflow_log-sandbox \
+  --member="serviceAccount:sa-kubtogcp-sandbox@electric-tesla-507710-k2.iam.gserviceaccount.com" \
   --role="roles/storage.objectAdmin"
 
 Verify:
 
 gcloud storage buckets get-iam-policy \
-  gs://bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+  gs://bkt-electric-tesla-507710-k2-airflow_dag-sandbox
 9. Give GKE/image-pull identity access to sandbox Artifact Registry
 
 First identify the identity currently used by the GKE nodes/workloads.
@@ -418,7 +418,7 @@ After identifying the existing GKE cluster:
 
 gcloud container clusters get-credentials <EXISTING_GKE_CLUSTER> \
   --region=northamerica-northeast1 \
-  --project=prj-n-cdp-ingestion
+  --project=electric-tesla-507710-k2
 
 Then:
 
@@ -441,15 +441,15 @@ kubectl get serviceaccount \
 Grant the Kubernetes identity permission to impersonate the GCP service account:
 
 gcloud iam service-accounts add-iam-policy-binding \
-  sa-kubtogcp-sandbox@prj-n-cdp-ingestion.iam.gserviceaccount.com \
+  sa-kubtogcp-sandbox@electric-tesla-507710-k2.iam.gserviceaccount.com \
   --role=roles/iam.workloadIdentityUser \
-  --member="serviceAccount:prj-n-cdp-ingestion.svc.id.goog[airflow-sandbox/airflow-sandbox]"
+  --member="serviceAccount:electric-tesla-507710-k2.svc.id.goog[airflow-sandbox/airflow-sandbox]"
 
 Then annotate the Kubernetes SA:
 
 kubectl annotate serviceaccount airflow-sandbox \
   --namespace airflow-sandbox \
-  iam.gke.io/gcp-service-account=sa-kubtogcp-sandbox@prj-n-cdp-ingestion.iam.gserviceaccount.com
+  iam.gke.io/gcp-service-account=sa-kubtogcp-sandbox@electric-tesla-507710-k2.iam.gserviceaccount.com
 
 Verify:
 
@@ -525,16 +525,16 @@ gcloud auth configure-docker northamerica-northeast1-docker.pkg.dev
 Build:
 
 docker build \
-  -t northamerica-northeast1-docker.pkg.dev/prj-n-cdp-ingestion/airflow-sandbox/custom-airflow:1.0.0 \
+  -t northamerica-northeast1-docker.pkg.dev/electric-tesla-507710-k2/airflow-sandbox/custom-airflow:1.0.0 \
   .
 17. Push sandbox Airflow image
 docker push \
-  northamerica-northeast1-docker.pkg.dev/prj-n-cdp-ingestion/airflow-sandbox/custom-airflow:1.0.0
+  northamerica-northeast1-docker.pkg.dev/electric-tesla-507710-k2/airflow-sandbox/custom-airflow:1.0.0
 
 Verify:
 
 gcloud artifacts docker images list \
-  northamerica-northeast1-docker.pkg.dev/prj-n-cdp-ingestion/airflow-sandbox
+  northamerica-northeast1-docker.pkg.dev/electric-tesla-507710-k2/airflow-sandbox
 18. Deploy sandbox Airflow Helm release
 
 Before running this, copy the existing TEST Helm values and change every TEST-specific dependency to sandbox.
@@ -648,24 +648,24 @@ Prod - Airflow DAGS
 Create sandbox-specific variables such as:
 
 GCP_PROJECT_ID
-prj-n-cdp-ingestion
+electric-tesla-507710-k2
 
 AIRFLOW_BUCKET
-bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+bkt-electric-tesla-507710-k2-airflow_dag-sandbox
 
 AIRFLOW_LOG_BUCKET
-bkt-prj-n-cdp-ingestion-airflow_log-sandbox
+bkt-electric-tesla-507710-k2-airflow_log-sandbox
 
 REGISTRY_URL
 northamerica-northeast1-docker.pkg.dev
 
 IMAGE_PATH
-prj-n-cdp-ingestion/airflow-sandbox/custom-airflow
+electric-tesla-507710-k2/airflow-sandbox/custom-airflow
 26. Create Azure DevOps secure file
 
 Prefer a sandbox-specific service account:
 
-sa-gkecreator-sandbox@prj-n-cdp-ingestion.json
+sa-gkecreator-sandbox@electric-tesla-507710-k2.json
 
 Upload it under:
 
@@ -700,7 +700,7 @@ environment: 'Sandbox - Airflow DAGS'
 
 and:
 
-airflow_bucket: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+airflow_bucket: 'bkt-electric-tesla-507710-k2-airflow_dag-sandbox'
 28. Test GCS deployment
 
 Add a harmless DAG:
@@ -712,7 +712,7 @@ Commit and push.
 Then verify:
 
 gcloud storage ls \
-  gs://bkt-prj-n-cdp-ingestion-airflow_dag-sandbox/dags/
+  gs://bkt-electric-tesla-507710-k2-airflow_dag-sandbox/dags/
 
 You should see:
 
@@ -754,7 +754,7 @@ Push.
 Verify:
 
 gcloud storage ls \
-  gs://bkt-prj-n-cdp-ingestion-airflow_dag-sandbox/dags/
+  gs://bkt-electric-tesla-507710-k2-airflow_dag-sandbox/dags/
 
 The DAG should be gone.
 

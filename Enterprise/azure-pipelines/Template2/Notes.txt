@@ -204,24 +204,24 @@ variables:
   # Set the correct distinct bucket/key values before real promotion.
 
   - name: SANDBOX_BUCKET
-    value: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+    value: 'bkt-electric-tesla-507710-k2-airflow_dag-sandbox'
   - name: SANDBOX_GCP_KEY_FILE
-    value: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+    value: 'sa-gkecreator@electric-tesla-507710-k2.json'
 
   - name: TEST_BUCKET
-    value: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+    value: 'bkt-electric-tesla-507710-k2-airflow_dag-sandbox'
   - name: TEST_GCP_KEY_FILE
-    value: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+    value: 'sa-gkecreator@electric-tesla-507710-k2.json'
 
   - name: REGISTRY_URL_TEST
     value: 'northamerica-northeast1-docker.pkg.dev'
   - name: IMAGE_PATH_TEST
-    value: 'prj-n-cdp-ingestion/airflow/custom-airflow'
+    value: 'electric-tesla-507710-k2/airflow/custom-airflow'
 
   - name: PROD_BUCKET
-    value: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+    value: 'bkt-electric-tesla-507710-k2-airflow_dag-sandbox'
   - name: PROD_GCP_KEY_FILE
-    value: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+    value: 'sa-gkecreator@electric-tesla-507710-k2.json'
 
 stages:
 

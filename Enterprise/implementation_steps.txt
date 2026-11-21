@@ -14,7 +14,7 @@ Azure DevOps
     │
     ▼
 TEST GCS
-bkt-prj-n-cdp-ingestion-airflow_dag
+bkt-electric-tesla-507710-k2-airflow_dag
     │
     ▼
 TEST Airflow on GKE
@@ -38,7 +38,7 @@ Azure DevOps
     │
     ▼
 SANDBOX GCS
-bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+bkt-electric-tesla-507710-k2-airflow_dag-sandbox
     │
     ▼
 SANDBOX AIRFLOW
@@ -56,7 +56,7 @@ Before creating anything, define these boundaries.
 
 Component	Existing TEST	Sandbox
 Azure repo	cdp-airflow-dag	cdp-airflow-dag-sandbox
-GCS DAG bucket	bkt-prj-n-cdp-ingestion-airflow_dag	bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+GCS DAG bucket	bkt-electric-tesla-507710-k2-airflow_dag	bkt-electric-tesla-507710-k2-airflow_dag-sandbox
 GCS log bucket	existing TEST log bucket	new sandbox log bucket
 Artifact Registry	existing Airflow image	sandbox image/repository or sandbox image tag
 Airflow GKE runtime	TEST Airflow	sandbox Airflow workload
@@ -82,7 +82,7 @@ Phase 2 — GCP project and APIs
 
 Your sandbox is staying inside:
 
-prj-n-cdp-ingestion
+electric-tesla-507710-k2
 
 That's perfectly reasonable.
 
@@ -90,7 +90,7 @@ You don't need another GCP project just to create an isolated Airflow environmen
 
 First verify the required APIs:
 
-gcloud services list --enabled --project=prj-n-cdp-ingestion
+gcloud services list --enabled --project=electric-tesla-507710-k2
 
 You should have the APIs required by your existing architecture, especially:
 
@@ -107,7 +107,7 @@ Phase 3 — Sandbox GCS buckets
 
 You've already created:
 
-gs://bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+gs://bkt-electric-tesla-507710-k2-airflow_dag-sandbox
 
 Good.
 
@@ -117,13 +117,13 @@ Your Airflow installation also needs logging.
 
 Existing TEST has:
 
-bkt-prj-n-cdp-ingestion-airflow_dag
-bkt-prj-n-cdp-ingestion-airflow_log
+bkt-electric-tesla-507710-k2-airflow_dag
+bkt-electric-tesla-507710-k2-airflow_log
 
 So create:
 
-gs://bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
-gs://bkt-prj-n-cdp-ingestion-airflow_log-sandbox
+gs://bkt-electric-tesla-507710-k2-airflow_dag-sandbox
+gs://bkt-electric-tesla-507710-k2-airflow_log-sandbox
 
 The second one is important.
 
@@ -135,13 +135,13 @@ This is where you need to be careful.
 
 Your existing Canam GKE workload identity uses:
 
-sa-kubtogcp@prj-n-cdp-ingestion.iam.gserviceaccount.com
+sa-kubtogcp@electric-tesla-507710-k2.iam.gserviceaccount.com
 
 Your sandbox could technically reuse that service account, with bucket-level permissions added only to the sandbox bucket.
 
 However, for proper environment isolation, I recommend:
 
-sa-kubtogcp-sandbox@prj-n-cdp-ingestion.iam.gserviceaccount.com
+sa-kubtogcp-sandbox@electric-tesla-507710-k2.iam.gserviceaccount.com
 
 rather than reusing the TEST identity.
 
@@ -172,8 +172,8 @@ Grant access at the bucket level.
 For example:
 
 gcloud storage buckets add-iam-policy-binding \
-  gs://bkt-prj-n-cdp-ingestion-airflow_dag-sandbox \
-  --member="serviceAccount:sa-kubtogcp-sandbox@prj-n-cdp-ingestion.iam.gserviceaccount.com" \
+  gs://bkt-electric-tesla-507710-k2-airflow_dag-sandbox \
+  --member="serviceAccount:sa-kubtogcp-sandbox@electric-tesla-507710-k2.iam.gserviceaccount.com" \
   --role="roles/storage.objectAdmin"
 
 And similarly for logs if your Airflow design requires direct GCS access.
@@ -245,7 +245,7 @@ namespace: airflow-sandbox
 
 Then bind it to:
 
-sa-kubtogcp-sandbox@prj-n-cdp-ingestion.iam.gserviceaccount.com
+sa-kubtogcp-sandbox@electric-tesla-507710-k2.iam.gserviceaccount.com
 
 This gives:
 
@@ -276,7 +276,7 @@ Airflow needs its metadata database.
 Your existing environment has:
 
 Cloud SQL
-prj-n-cdp-ingestion:northamerica-northeast1:airflow-postgres
+electric-tesla-507710-k2:northamerica-northeast1:airflow-postgres
 
 Do not point sandbox Airflow at the TEST Airflow metadata database.
 
@@ -324,7 +324,7 @@ You also correctly identified this.
 
 Your existing image is:
 
-northamerica-northeast1-docker.pkg.dev/prj-n-cdp-ingestion/airflow/custom-airflow:162729
+northamerica-northeast1-docker.pkg.dev/electric-tesla-507710-k2/airflow/custom-airflow:162729
 
 Don't overwrite it.
 
@@ -352,7 +352,7 @@ Then:
 Sandbox image:
 
 northamerica-northeast1-docker.pkg.dev/
-prj-n-cdp-ingestion/
+electric-tesla-507710-k2/
 airflow-sandbox/
 custom-airflow:<version>
 
@@ -375,7 +375,7 @@ cdp-airflow-dag-sandbox/
 
 Build:
 
-docker build -t northamerica-northeast1-docker.pkg.dev/prj-n-cdp-ingestion/airflow-sandbox/custom-airflow:1.0.0 .
+docker build -t northamerica-northeast1-docker.pkg.dev/electric-tesla-507710-k2/airflow-sandbox/custom-airflow:1.0.0 .
 
 Authenticate:
 
@@ -383,12 +383,12 @@ gcloud auth configure-docker northamerica-northeast1-docker.pkg.dev
 
 Push:
 
-docker push northamerica-northeast1-docker.pkg.dev/prj-n-cdp-ingestion/airflow-sandbox/custom-airflow:1.0.0
+docker push northamerica-northeast1-docker.pkg.dev/electric-tesla-507710-k2/airflow-sandbox/custom-airflow:1.0.0
 
 Then verify:
 
 gcloud artifacts docker images list `
-  northamerica-northeast1-docker.pkg.dev/prj-n-cdp-ingestion/airflow-sandbox
+  northamerica-northeast1-docker.pkg.dev/electric-tesla-507710-k2/airflow-sandbox
 Phase 10 — Artifact Registry IAM
 
 You need two different access patterns.
@@ -471,7 +471,7 @@ cdp-airflow-dag-sandbox
 
 should deploy only to:
 
-gs://bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+gs://bkt-electric-tesla-507710-k2-airflow_dag-sandbox
 
 Your new reusable pipeline template can therefore use:
 
@@ -484,7 +484,7 @@ parameters:
 
 and Sandbox's main pipeline supplies:
 
-airflow_bucket: 'bkt-prj-n-cdp-ingestion-airflow_dag-sandbox'
+airflow_bucket: 'bkt-electric-tesla-507710-k2-airflow_dag-sandbox'
 
 No TEST bucket should appear anywhere in the sandbox deployment pipeline.
 
@@ -516,7 +516,7 @@ Which configuration files contain TEST-specific infrastructure references?
 
 Search the repo for:
 
-git grep -n "bkt-prj-n-cdp-ingestion-airflow_dag"
+git grep -n "bkt-electric-tesla-507710-k2-airflow_dag"
 
 and:
 
@@ -559,19 +559,19 @@ Create sandbox-specific variables.
 For example:
 
 GCP_PROJECT_ID
-    prj-n-cdp-ingestion
+    electric-tesla-507710-k2
 
 AIRFLOW_BUCKET
-    bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+    bkt-electric-tesla-507710-k2-airflow_dag-sandbox
 
 AIRFLOW_LOG_BUCKET
-    bkt-prj-n-cdp-ingestion-airflow_log-sandbox
+    bkt-electric-tesla-507710-k2-airflow_log-sandbox
 
 ARTIFACT_REGISTRY
     northamerica-northeast1-docker.pkg.dev
 
 AIRFLOW_IMAGE_REPOSITORY
-    prj-n-cdp-ingestion/airflow-sandbox/custom-airflow
+    electric-tesla-507710-k2/airflow-sandbox/custom-airflow
 
 If the pipeline uses separate variables for these, keep them explicit.
 
@@ -579,7 +579,7 @@ Phase 16 — Azure DevOps secure files
 
 You currently have:
 
-sa-gkecreator@prj-n-cdp-ingestion.json
+sa-gkecreator@electric-tesla-507710-k2.json
 
 used by TEST.
 
@@ -587,7 +587,7 @@ For proper isolation, I'd avoid making the sandbox pipeline depend on a producti
 
 Prefer creating:
 
-sa-gkecreator-sandbox@prj-n-cdp-ingestion.iam.gserviceaccount.com
+sa-gkecreator-sandbox@electric-tesla-507710-k2.iam.gserviceaccount.com
 
 and uploading its key only if your current Azure DevOps authentication design still requires service-account keys.
 
@@ -623,7 +623,7 @@ Sandbox Airflow
 
 And it should never deploy to:
 
-bkt-prj-n-cdp-ingestion-airflow_dag
+bkt-electric-tesla-507710-k2-airflow_dag
 
 or:
 
@@ -823,11 +823,11 @@ Storage Object Admin
 
 on:
 
-bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
+bkt-electric-tesla-507710-k2-airflow_dag-sandbox
 
 and potentially:
 
-bkt-prj-n-cdp-ingestion-airflow_log-sandbox
+bkt-electric-tesla-507710-k2-airflow_log-sandbox
 
 depending on the deployment/runtime behavior.
 
@@ -836,8 +836,8 @@ Storage Object Viewer
 
 or the minimum required bucket role for:
 
-bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
-bkt-prj-n-cdp-ingestion-airflow_log-sandbox
+bkt-electric-tesla-507710-k2-airflow_dag-sandbox
+bkt-electric-tesla-507710-k2-airflow_log-sandbox
 Artifact Registry
 
 Azure DevOps/build identity:
@@ -885,7 +885,7 @@ Once everything is complete, you should have:
              │                              │
              ▼                              │
    GCS DAG Bucket                           │
-   bkt-prj-n-cdp-ingestion-                │
+   bkt-electric-tesla-507710-k2-                │
    airflow_dag-sandbox                     │
              │                              │
              └──────────────────────────────┤
@@ -914,7 +914,7 @@ And completely separately:
              cdp-airflow-dag
                       │
                       ▼
-       bkt-prj-n-cdp-ingestion-airflow_dag
+       bkt-electric-tesla-507710-k2-airflow_dag
                       │
                       ▼
               TEST Airflow
@@ -944,8 +944,8 @@ Pub/Sub
 Snowflake
 Terraform modules
 Step 2 — Create sandbox GCS
-bkt-prj-n-cdp-ingestion-airflow_dag-sandbox
-bkt-prj-n-cdp-ingestion-airflow_log-sandbox
+bkt-electric-tesla-507710-k2-airflow_dag-sandbox
+bkt-electric-tesla-507710-k2-airflow_log-sandbox
 Step 3 — Create sandbox IAM
 
 Create:
@@ -961,7 +961,7 @@ Step 5 — Build and push sandbox Airflow image
 Example:
 
 northamerica-northeast1-docker.pkg.dev/
-prj-n-cdp-ingestion/
+electric-tesla-507710-k2/
 airflow-sandbox/
 custom-airflow:1.0.0
 Step 6 — Create sandbox Kubernetes namespace

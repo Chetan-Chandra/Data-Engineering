@@ -13,7 +13,7 @@ variables:
     value: 'northamerica-northeast1-docker.pkg.dev'
 
   - name: IMAGE_PATH_TEST
-    value: 'prj-n-cdp-ingestion/airflow/custom-airflow'
+    value: 'electric-tesla-507710-k2/airflow/custom-airflow'
 
 
 stages:
@@ -44,7 +44,7 @@ stages:
           - task: DownloadSecureFile@1
             name: test_key
             inputs:
-              secureFile: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+              secureFile: 'sa-gkecreator@electric-tesla-507710-k2.json'
 
 
           # ----------------------------------------------------------------------------------------
@@ -109,8 +109,8 @@ stages:
 
                 - template: azure-pipelines/deploy-airflow.yml
                   parameters:
-                    airflow_bucket: 'bkt-prj-n-cdp-ingestion-airflow_dag'
-                    gcp_secure_file: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+                    airflow_bucket: 'bkt-electric-tesla-507710-k2-airflow_dag'
+                    gcp_secure_file: 'sa-gkecreator@electric-tesla-507710-k2.json'
 
 
   # ================================================================================================
@@ -144,5 +144,5 @@ stages:
 
                 - template: azure-pipelines/deploy-airflow.yml
                   parameters:
-                    airflow_bucket: 'bkt-prj-p-cdp-ingestion-airflow_dag'
-                    gcp_secure_file: 'sa-gkecreator@prj-p-cdp-ingestion.json'
+                    airflow_bucket: 'bkt-electric-tesla-507710-k2-airflow_dag'
+                    gcp_secure_file: 'sa-gkecreator@electric-tesla-507710-k2.json'

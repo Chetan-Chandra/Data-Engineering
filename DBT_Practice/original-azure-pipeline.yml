@@ -20,11 +20,11 @@ variables:
   - name: REGISTRY_URL_TEST
     value: 'northamerica-northeast1-docker.pkg.dev'
   - name: IMAGE_PATH_TEST
-    value: 'prj-n-cdp-ingestion/dbt/dbt-docs'
+    value: 'electric-tesla-507710-k2/dbt/dbt-docs'
   - name: REGISTRY_URL_PROD
     value: 'northamerica-northeast1-docker.pkg.dev'
   - name: IMAGE_PATH_PROD
-    value: 'prj-p-cdp-ingestion/dbt/dbt-docs'
+    value: 'electric-tesla-507710-k2/dbt/dbt-docs'
 
 stages:
   - stage: dbt_ci_stage
@@ -275,7 +275,7 @@ stages:
           - task: DownloadSecureFile@1
             name: google_application_credentials_test
             inputs:
-              secureFile: 'sa-gkecreator@prj-n-cdp-ingestion.json'
+              secureFile: 'sa-gkecreator@electric-tesla-507710-k2.json'
             displayName: 'Download GCP JSON Key'
             
           - script: |
@@ -316,8 +316,8 @@ stages:
               gcloud run deploy dbt \
               --image $FULL_IMAGE_NAME:$(Build.BuildId) \
               --region us-central1 \
-              --project prj-n-cdp-ingestion \
-              --service-account "cdp-ingestion-runner@prj-n-cdp-ingestion.iam.gserviceaccount.com" \
+              --project electric-tesla-507710-k2 \
+              --service-account "cdp-ingestion-runner@electric-tesla-507710-k2.iam.gserviceaccount.com" \
               --platform managed \
               --memory 128Mi \
               --cpu 0.5 \
@@ -603,7 +603,7 @@ stages:
                 - task: DownloadSecureFile@1
                   name: google_application_credentials_prod
                   inputs:
-                    secureFile: 'sa-gkecreator@prj-p-cdp-ingestion.json'
+                    secureFile: 'sa-gkecreator@electric-tesla-507710-k2.json'
                   displayName: 'Download GCP JSON Key'
                   
                 - script: |
@@ -644,8 +644,8 @@ stages:
                     gcloud run deploy dbt \
                     --image $FULL_IMAGE_NAME:$(Build.BuildId) \
                     --region us-central1 \
-                    --project prj-p-cdp-ingestion \
-                    --service-account "cdp-ingestion-runner@prj-p-cdp-ingestion.iam.gserviceaccount.com" \
+                    --project electric-tesla-507710-k2 \
+                    --service-account "cdp-ingestion-runner@electric-tesla-507710-k2.iam.gserviceaccount.com" \
                     --platform managed \
                     --memory 128Mi \
                     --cpu 0.5 \
