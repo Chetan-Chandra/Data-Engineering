@@ -1244,59 +1244,54 @@ Here is the broader learning path I recommend.
 ## **Complete Data Architecture Learning Roadmap**
 
 1. **Module 1 — Data Architecture Fundamentals**
-
    Covered
-
    Architecture principles, layers, components, logical and physical architecture, cloud mapping.
+
 2. **Module 2 — Enterprise Data Platform Architecture**
-
    Foundations covered
-
    Platform layers, architecture patterns, enterprise design and the architecture SOP.
+
 3. **Module 3 — Data Ingestion Architecture**
-
    Batch, streaming, CDC, APIs, file ingestion, event brokers, data contracts and schema evolution.
+
 4. **Module 4 — Data Storage Architecture**
-
    Data lakes, warehouses, lakehouses, object storage, file formats, partitioning, table formats and storage optimization.
+
 5. **Module 5 — Distributed Data Processing**
-
    Apache Spark, PySpark, distributed computing, partitioning, shuffling, parallelism, fault tolerance and stream processing.
+
 6. **Module 6 — Data Modelling Architecture**
-
    Conceptual, logical and physical modelling; dimensional modelling; Kimball; Inmon; Data Vault; SCD; Data Vault to dimensional marts.
+
 7. **Module 7 — Orchestration and Workflow Architecture**
-
    Airflow, dependencies, retries, backfills, idempotency, event triggers and workflow design.
+
 8. **Module 8 — Data Governance and Security Architecture**
-
    IAM, RBAC, ABAC, PII, masking, encryption, lineage, metadata, catalogues and data ownership.
+
 9. **Module 9 — Data Quality and Observability Architecture**
-
    Data contracts, validation, monitoring, alerting, SLAs, SLOs and incident management.
+
 10. **Module 10 — Scalability, Performance and Cost Architecture**
-
     Distributed scaling, query optimization, workload isolation, capacity planning, FinOps and performance engineering.
+
 11. **Module 11 — Reliability, HA and Disaster Recovery**
-
     Fault tolerance, retries, checkpoints, replay, backups, replication, RPO, RTO and recovery testing.
+
 12. **Module 12 — DataOps, CI/CD and Infrastructure Architecture**
-
     Terraform, deployment pipelines, environment promotion, automated testing, GitOps and release management.
+
 13. **Module 13 — Modern and Distributed Data Architectures**
-
     Data Mesh, Data Fabric, Lambda, Kappa, domain-oriented architecture, streaming platforms and event-driven systems.
+
 14. **Module 14 — Cloud and Multi-Cloud Data Architecture**
-
     GCP, AWS, Azure, cross-cloud integration, migration, portability, vendor lock-in and hybrid environments.
-15. **Module 15 — Enterprise Architecture Design Projects**
 
+15. **Module 15 — Enterprise Architecture Design Projects**
     End-to-end architecture design for retail, banking, healthcare, manufacturing, finance and IoT.
 
 ## **Part 10 — How we will use your existing project**
-
 We won't throw away your current implementation and rebuild everything just to learn a new tool.
-
 We'll extend it intelligently.
 
 ## **Your architecture laboratory**
