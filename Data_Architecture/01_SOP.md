@@ -1,13 +1,3 @@
-Absolutely. We are changing the direction of this learning track.
-
-From this point onward, we're treating it as a **complete Data Architecture learning programme for real-world data engineering projects**, not interview preparation.
-
-The goal is to develop the ability to understand, design, build, evaluate, and operate data architectures—from a small data pipeline to a large enterprise data platform.
-
-We'll use your AdventureWorks project as a practical laboratory, but we'll also study how the same ideas work in actual enterprises with hundreds of data sources, multiple cloud platforms, large data volumes, security requirements, multiple business domains, and different types of data consumers.
-
-Before moving forward, let's create your reference document.
-
 # **Data Architecture — SOP & Reference Guide**
 
 Learning reference · Version 1.0
@@ -70,48 +60,37 @@ The design decisions connecting those components form its data architecture.
 A typical enterprise data platform can be organized into these layers.
 
 ## **Enterprise data platform — logical architecture**
-
-**1. Data Sources**
-
-ERP · CRM · SQL Server · Oracle · APIs · Files · Applications · IoT
-
-**2. Ingestion Layer**
-
-Batch · Streaming · CDC · API ingestion · File ingestion
-
-**3. Landing and Storage Layer**
-
-Raw data · Data lake · Object storage · Historical retention
-
-**4. Processing and Transformation**
-
-Python · SQL · Spark · dbt · Data cleansing · Aggregation
-
-**5. Analytical Storage**
-
-Data warehouse · Lakehouse · Data marts
-
-**6. Data Products and Consumption**
-
-BI · Dashboards · APIs · Applications · Data Science · ML
+______________________________________________________________________________________________________________________
+|
+|                       **1. Data Sources**
+|            ERP · CRM · SQL Server · Oracle · APIs · Files · Applications · IoT
+|                                   ↓
+|                        **2. Ingestion Layer**
+|            Batch · Streaming · CDC · API ingestion · File ingestion
+|                                   ↓
+|                       **3. Landing and Storage Layer**
+|            Raw data · Data lake · Object storage · Historical retention
+|                                   ↓
+|                       **4. Processing and Transformation**
+|            Python · SQL · Spark · dbt · Data cleansing · Aggregation
+|                                   ↓
+|                       **5. Analytical Storage**
+|            Data warehouse · Lakehouse · Data marts
+|                                   ↓
+|                        **6. Data Products and Consumption**|
+|            BI · Dashboards · APIs · Applications · Data Science · ML
+______________________________________________________________________________________________________________________
 
 **Cross-cutting capabilities — apply across the platform**
 
-&#x20;Security
-
-&#x20;Governance
-
-&#x20;Data quality
-
-&#x20;Observability
-
-&#x20;Orchestration
-
-&#x20;CI/CD
-
-&#x20;Metadata and lineage
-
-&#x20;Cost management
+Security
+Governance
+Data quality
+Observability
+Orchestration
+CI/CD
+Metadata and lineage
+Cost management
 
 Let's understand each layer.
 
@@ -444,9 +423,7 @@ An important distinction: these are not all the same type of pattern. Some descr
 
 ### **1. Data Warehouse Architecture**
 
-[Enterprise Data Warehouse](https://images.openai.com/static-rsc-4/XIeohY_q00h-2E9Pzg7XcU6rg6wZl6FBqaET6x8OTFpamQ-BiIkCVE1TjfxLyep8YR6AyySka6J4nHXAtXYEJBnNDkAmlnKrQ74ZpracV-m297gflp3tP4sepXDHEBEltx3AOrBTjllM4M7T_-YfDDrL50GqYVz1bdEX-DAEyjg?purpose=inline)
-
-[capellasolutions.com](https://www.capellasolutions.com/blog/enterprise-data-warehouse?utm_source=chatgpt.com)
+![Enterprise Data Warehouse](Images/Enterprise_Data_Flow_Architechture.png)
 
 **Purpose:** Structured analytical reporting.
 
@@ -483,9 +460,7 @@ Consider alternatives or extensions when:
 
 ### **2. Data Lake Architecture**
 
-[Modern Data Lake Architecture – Scale, Insights, Agility](https://images.openai.com/static-rsc-4/OnR08nDt9K_KELqZIEwzF7Q1dK4wxAOa6MklcQvgtk-PYEdgdo4UL3-qbObCIA2laoMA5MaOPoajB6ZRwmBMij0PkI9Oc6u20fgLCO6bti0ieMstchkr5Vd_vuWmtxs90JDfVUKf5W9qM450aCdgg02UN7at_0tTeMLdz_MSZNw?purpose=inline)
-
-[dataforest.ai](https://dataforest.ai/blog/data-lake-architecture-for-unified-data-analytics-platform?utm_source=chatgpt.com)
+![Data Lake Architecture](Images/Data_Lake_Architecture.png)
 
 **Purpose:** Store large amounts of data in different formats, often in its original form.
 
@@ -520,9 +495,7 @@ Risks to manage:
 
 ### **3. Lakehouse Architecture**
 
-[What is a Data Lakehouse & How does it Work? | Apache Hudi](https://images.openai.com/static-rsc-4/O3QO_fOTmrgarEL-w03cWYL7QJWZKqYIsVxlx7mCrJNl6fshLREBGwyMi4b3xEO0FLn7AsRI0XWZ6zk8xGW4xMPux4ifQNITyzj_SMByLgA2usu2Y6_shkIwwTb5hqc7tFRMtA8Z9AAzsIFtdB7uEyjyPVIWZ7T7zKwKkv7-O0Y?purpose=inline)
-
-[hudi.apache.org](https://hudi.apache.org/blog/2024/07/11/what-is-a-data-lakehouse/?utm_source=chatgpt.com)
+![Lakehouse Architecture](Images/Lakehouse_Architecture.png)
 
 **Purpose:** Combine data-lake flexibility with warehouse-like management and analytical capabilities.
 
@@ -552,9 +525,7 @@ Important: a lakehouse is an architectural approach, not simply a synonym for Da
 
 ### **4. Medallion Architecture**
 
-[A No-Nonsense Guide to Medallion Architecture | by Akshay Sharma | Medium](https://images.openai.com/static-rsc-4/489m6bTd8qcO07FBUxDJUQCrTZh7TifnYJ7tgtqo1NoX5OD_I4OyxIMRueIz4AjudFg2116xXmbMHeitFCZeE6vlQg-1eGEVfD5v1PxfxhGbS8GHF_lsCoqBOgE52hSEJ29kWyUKBW3qzibVsY2Pu7_pX-Yuht6VwBZF_5ALWdo?purpose=inline)
-
-[medium.com](https://medium.com/%40akshay.sharma1088/a-no-nonsense-guide-to-medallion-architecture-dc967137b01d?utm_source=chatgpt.com)
+![Medallion Architecture](Images/Medallion_Architecture.png)
 
 **Purpose:** Organize data into progressively refined layers.
 
@@ -617,9 +588,7 @@ Use when daily or hourly freshness is sufficient.
 
 ### **6. Streaming Architecture**
 
-[FigLab — AI-Powered Scientific Visualization](https://images.openai.com/static-rsc-4/m9wl6Bfe8Bbop2O05iFL5UDCrfTF4u2yRsbwdMpLG9_NIPguhfRFxfcb2uvgnJYz_dhDKfGJE38T3dLvaeASL2RIV_UgEvVZ2gDkclsmE_oOv0Z0mgzEjEy_wqiMFE4aoJTJ-o_8F2w14_ylQ5a3zmQednJKKFAoVMFvO64RpzY?purpose=inline)
-
-[figlab.ai](https://figlab.ai/?utm_source=chatgpt.com)
+![Streaming Architecture](Images/Streaming_Architecture.png)
 
 ```
 Event Sources
@@ -673,9 +642,7 @@ CDC is an ingestion technique, not a complete end-to-end architecture by itself.
 
 ### **8. Event-Driven Architecture**
 
-[System Design Series Part 7: Message Queues & Event-Driven - Wasil Zafar](https://images.openai.com/static-rsc-4/xtMsjdhn6G9JPcCnYEblB5bs_-QWcZ652xUUqSaU5deOGqocyzC6aQnhlrg2dfP8eBATyl25vbS1Jp_oExCiODDgoF0q2kkpnOqv78nmxgNF6_xWOStFBVHikAUlfmFgjtpXYqCsw0-wMMEhmsh_rMwvn5cFywq8Sip9HMWhRGI?purpose=inline)
-
-[wasilzafar.com](https://www.wasilzafar.com/pages/series/system-design/system-design-message-queues-event-driven.html?utm_source=chatgpt.com)
+![Event-Driven Architecture](Images/Event_Driven_Architecture.png)
 
 **Purpose:** Allow systems to react to events without requiring tight direct dependencies between producers and consumers.
 
@@ -706,9 +673,7 @@ Event-driven architecture is broader than streaming. An event can trigger an asy
 
 **Purpose:** Support both historical batch processing and low-latency streaming.
 
-[Lambda Architecture: A Big Data processing framework | by Abhinav Vinci | Medium](https://images.openai.com/static-rsc-4/enPAUgDBCZOmIz7LoTlu65JTdqxRphU5HVKvcRW7jaUBPaNuWXNTxXMcYb2DXch9ZEcDt8akzJ-Iofi_fBAOHGMwzkRP6JoN5InL5BAiTaKZBnkY6_aCiZw80c_zm2Jguw4WhL02mZtht0wp-1WzPFjwt1rDTyfOI7t_QN-qjd8?purpose=inline)
-
-[medium.com](https://medium.com/%40vinciabhinav7/lambda-architecture-a-big-data-processing-framework-introduction-74a47bc88bd3?utm_source=chatgpt.com)
+![Lambda Architecture](Images/Lambda_Architecture.png)
 
 ```
              Data
@@ -840,9 +805,7 @@ Data Vault is especially useful for complex enterprise integration and auditabil
 
 ### **14. Data Mesh**
 
-[Data Mesh, Data Lakehouse, DataOps, Data Governance and Data Observability – What You Need to Know to Build Your Next-Generation Enterprise Data Platform - ClearPeaks Blog](https://images.openai.com/static-rsc-4/ZcxmG4nk9qQR_4DQbtot7wQkBMVEvRBqgmdrfHhgEPQu2F-tY_SiJPOBFtMIYG1qxzpyNykIHyTgJMuNYiNoJLKLQPT1XXatP8_cmro7cNiZiAgvE83QUgmZQDDtnNq9QASrUbmuegNXj6h05vRjB9P4qtj6diDZwVxzJ7KbGJg?purpose=inline)
-
-[clearpeaks.com](https://www.clearpeaks.com/data-mesh-lakehouse-governance-dataops-next-generation-enterprise-data-platform/?utm_source=chatgpt.com)
+![Data Mesh](Images/Data_Mesh.png)
 
 **Purpose:** Organize data ownership around business domains.
 
@@ -957,43 +920,40 @@ First classify the requirements.
 
 ### **Step 2: Design the architecture**
 
-## **Global retail enterprise data platform**
-
-**Source systems**
-
-SQL Server · Oracle · SAP · Salesforce · APIs · Files · Events
-
-**Batch ingestion**
-
-Scheduled loads · File ingestion · API extraction
-
-**Change/event ingestion**
-
-CDC · Message brokers · Event streams
-
-**Central landing and data lake**
-
-Raw files · Events · Historical data · Replay
-
-**Processing and transformation**
-
-Spark · SQL · Python · dbt · Data quality
-
-**Analytical storage**
-
-Warehouse / Lakehouse · Dimensional models · Data marts
-
-**Business analytics**
-
-Tableau · Power BI · Reports
-
-**Advanced analytics**
-
-ML · Data science · APIs
-
-Platform-wide controls
-
-Security · Governance · Metadata · Lineage · Observability · Orchestration · CI/CD · Cost · HA/DR
+_____________________________________________________________________________________________________________________________________________________
+###### **Global retail enterprise data platform**
+_____________________________________________________________________________________________________________________________________________________
+|
+|                                             **Source systems**
+|                        SQL Server · Oracle · SAP · Salesforce · APIs · Files · Events
+|
+|                                                       ↓
+|
+|
+|            **Batch ingestion**                                              **Change/event ingestion**
+|    Scheduled loads · File ingestion · API extraction                    CDC · Message brokers · Event streams
+|           
+|                                                       ↓
+|           
+|                                          **Central landing and data lake**
+|                                     Raw files · Events · Historical data · Replay
+|
+|                                                       ↓
+|
+|                                         **Processing and transformation**
+|                                     Spark · SQL · Python · dbt · Data quality
+|                                                       ↓
+|                                            **Analytical storage**
+|                                            Warehouse / Lakehouse · Dimensional models · Data marts
+|
+|                                                       ↓
+|
+|            **Business analytics**                                              **Advanced analytics**
+|            Tableau · Power BI · Reports                                         ML · Data science · APIs
+|          
+|            Platform-wide controls
+|            Security · Governance · Metadata · Lineage · Observability · Orchestration · CI/CD · Cost · HA/DR
+_______________________________________________________________________________________________________________________________________________________
 
 ### **Step 3: Select the appropriate patterns**
 
@@ -1341,9 +1301,7 @@ We'll extend it intelligently.
 
 ## **Your architecture laboratory**
 
-[Why dbt + Airflow + Snowflake Actually Works in a Real Data Platform (2026) | by Abhishek Kumar Gupta | Tech with Abhishek | Jan, 2026 | Medium](https://images.openai.com/static-rsc-4/luhv8d_fp8oojFgC4-ppq4vPbcnujdHaUMWF8o6Sbe7hQJzsOUTRLucq1uT3Sq8NbubqCR5VPFF-L7eTyUH0BroCzLQn9ECghGg0Ei63QeZ411lTXUzm6MMshBECePdaTQvxwPa9VXVDIxBLHXbed3hi-tCHdIcIX7YvKzAaaY8?purpose=inline)
-
-[medium.com](https://medium.com/tech-with-abhishek/why-dbt-airflow-snowflake-actually-works-in-a-real-data-platform-2026-ba961a35a62a?utm_source=chatgpt.com)
+![Your_architecture_laboratory](Images/Your_architecture_laboratory.png)
 
 **Current architecture**
 
